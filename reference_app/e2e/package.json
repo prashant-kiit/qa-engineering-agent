@@ -1,0 +1,14 @@
+{
+  "name": "reference-shop-e2e",
+  "private": true,
+  "version": "0.0.0",
+  "description": "TypeScript Playwright E2E smoke project for the reference shop app.",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke-buggy": "SMOKE_FAULT=1 playwright test",
+    "install:browser": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0"
+  }
+}

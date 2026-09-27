@@ -5,9 +5,11 @@
 > this is the living working-detail. `DESIGN.md` remains the architecture source of truth.
 
 ## Conflicts / deviations for human review
-- **None.** Current repo (docs + harness + units 0–2 done: doc note + scaffold/tooling +
-  FastAPI/SQLite shop backend) is consistent with `META_PLAN.md` Phase 0 and `DESIGN.md`. Proceeding
-  to unit 3 (`p0-shop-frontend`).
+- **None.** Current repo (docs + harness + units 0–4 done: doc note + scaffold/tooling +
+  FastAPI/SQLite shop backend + React/Vite shop frontend + BRD/release convention) is consistent with
+  `META_PLAN.md` Phase 0 and `DESIGN.md`. Proceeding to unit 5 (`p0-playwright-smoke`). The Playwright
+  project is placed at `reference_app/e2e/` — a sub-directory of the `DESIGN.md §13` `reference_app/`
+  dir, so no new top-level dir is introduced and §13 is not contradicted.
 
 ## Task 0 (do first): record post-v1 scope in `DESIGN.md §15`
 Add to `DESIGN.md §15`:
@@ -17,7 +19,7 @@ Add to `DESIGN.md §15`:
 
 **Status:** DONE (unit `p0-design-note`, commit `50bf25a`). Note present in `DESIGN.md §15`.
 
-## Phase 0 — Testbed & scaffolding  — LOCKED for this iteration (2026-09-27, re-confirmed at unit 3)
+## Phase 0 — Testbed & scaffolding  — LOCKED for this iteration (2026-09-28, re-confirmed at unit 5)
 
 **Current app state:** repo contains docs (`DESIGN.md`, `META_PLAN.md`, this file, `CLAUDE.md`),
 harness config (`.harness/`, `.claude/`), `.gitignore`, `LICENSE`. **Unit 0 (`p0-design-note`) is
@@ -27,21 +29,35 @@ project manifest (`pyproject.toml`), a root `Makefile` with placeholder `dev`/`t
 + `help` targets, and the extended `.gitignore` are all present (commit `d958ac6`). **Unit 2
 (`p0-shop-backend`) is `done`** — a runnable **FastAPI + SQLite** shop backend lives at
 `reference_app/backend/app.py`, importable as `reference_app.backend.app:app` and servable on
-`http://127.0.0.1:8000` (commit `0ea16c8`, branch `harness/p0-shop-backend`). It implements HTTP
-Basic Auth (`testuser`/`testpass`), a **fixed 5-product seed catalog**, a per-user cart with
-cumulative add-to-cart, checkout→order, order retrieval, correct order-total, and an auto-served
-`/openapi.json` (routes `/products`, `/cart`, `/cart/items`, `/checkout`, `/orders/{id}`). The
-backend API contract the UI must talk to is fully specified in `.harness/tasks/p0-shop-backend.md`.
-**No frontend yet:** `reference_app/frontend/` holds only a `.gitkeep`; no `eval/` logic, no
-Playwright project, no `BRD.md`. Active unit: **3 (`p0-shop-frontend`)** — dep `p0-shop-backend` is
-`done` (met). Remaining units 4–6 build the BRD/release convention, the Playwright smoke, and the
-`eval/` harness on top of it.
+`http://127.0.0.1:8000` (commit `0ea16c8`). It implements HTTP Basic Auth (`testuser`/`testpass`), a
+**fixed 5-product seed catalog**, a per-user cart with cumulative add-to-cart, checkout→order, order
+retrieval, correct order-total, and an auto-served `/openapi.json` (routes `/products`, `/cart`,
+`/cart/items`, `/checkout`, `/orders/{id}`). The backend API contract is fully specified in
+`.harness/tasks/p0-shop-backend.md`; the launch entrypoints + seed are documented in
+`reference_app/backend/README.md`. **Unit 3 (`p0-shop-frontend`) is `done`** — a **React + Vite**
+single-page UI lives at `reference_app/frontend/` with five views (login, product list, cart,
+checkout, order-confirmation) that drive the backend over Basic Auth; verified at the
+component/integration level (Vitest with backend stubbed) plus a passing production build (commit
+`ba4d349`). The UI contract, scripts (`dev`/`build`/`test`), Vite dev server (default
+`http://127.0.0.1:5173`), `VITE_API_BASE_URL` (default `http://127.0.0.1:8000`), and the stable
+`data-testid` DOM contract are documented in `reference_app/frontend/README.md` and the view sources.
+**Unit 4 (`p0-brd-release`) is `done`** — `reference_app/BRD.md` (freeform intended behavior),
+`reference_app/README.md` (release convention: version marker + git tag scheme), and
+`reference_app/VERSION` are present (commit `4a63635`). **Still missing:** no Playwright project, no
+`eval/` logic; the root `Makefile` `test`/`eval`/`dev` targets are still placeholders. Active unit:
+**5 (`p0-playwright-smoke`)** — dep `p0-shop-frontend` is `done` (met). Remaining after: unit 6
+(`p0-eval-harness`) builds the injected-bug harness + scorer on top of the smoke.
 
 **Environment note (informs, does not override META_PLAN/DESIGN):** the dev machine has `uv` and GNU
-`make` available; Node + `npx` are available for the frontend and later Playwright units. The Phase 0
-frontend stack is **React + Vite** (per `DESIGN.md §12` and B2 below). Component/integration testing
-for the frontend uses the Vite-native test tooling with the browser DOM emulated and backend calls
-stubbed; the full browser E2E smoke against a live app is a **separate later unit (5)**.
+`make` available; Node + `npm`/`npx` are available for the frontend and the Playwright unit. The
+Phase 0 frontend stack is **React + Vite** (per `DESIGN.md §12`). Test artifacts are **TypeScript
+Playwright** (`DESIGN.md §12`). For unit 5, the Playwright project is a dedicated Node project under
+`reference_app/e2e/` (its own `package.json` declaring `@playwright/test`), kept separate from the
+frontend's Vitest toolchain and from the root bash `tests/` suites to avoid collisions. The full
+≥3-bug injection catalog + `eval/score.py` scorer remains **unit 6**, out of unit-5 scope; unit 5
+ships exactly one deliberately-faulty variant (a single `SMOKE_FAULT` toggle) purely to demonstrate
+the smoke goes red. Making `make dev` a real app-launcher is not required by unit 5 (the launch
+commands pinned in the unit-5 spec may be reused for it at the Phase 0 exit gate).
 
 **Locked ordered units** (source of truth: `.harness/backlog.md`; scope: B1–B5 below):
 
@@ -50,9 +66,9 @@ stubbed; the full browser E2E smoke against a live app is a **separate later uni
 | 0 | `p0-design-note` | — | done |
 | 1 | `p0-scaffold` | — | done |
 | 2 | `p0-shop-backend` | `p0-scaffold` | done |
-| 3 | `p0-shop-frontend` | `p0-shop-backend` | **active** |
-| 4 | `p0-brd-release` | `p0-shop-backend` | todo |
-| 5 | `p0-playwright-smoke` | `p0-shop-frontend` | todo |
+| 3 | `p0-shop-frontend` | `p0-shop-backend` | done |
+| 4 | `p0-brd-release` | `p0-shop-backend` | done |
+| 5 | `p0-playwright-smoke` | `p0-shop-frontend` | **active (spec-ready)** |
 | 6 | `p0-eval-harness` | `p0-playwright-smoke`, `p0-shop-backend` | todo |
 
 **Goal:** a real shop app to test + a reliability measurement harness + repo scaffolding, all
@@ -78,30 +94,49 @@ runner/  eval/  control_plane/{api,orchestration,stores,frontend}/  sandbox/
   **This is unit 2 (`p0-shop-backend`) — DONE.**
 - **Frontend (`reference_app/frontend/`, React + Vite):** login, product list, cart, checkout,
   order-confirmation — talks to the backend (Basic Auth; routes/shapes per
-  `.harness/tasks/p0-shop-backend.md`). **This is unit 3 (`p0-shop-frontend`) — ACTIVE.** Its
-  acceptance is verified at the **component/integration level** (Vite test tooling with backend
+  `.harness/tasks/p0-shop-backend.md`). **This is unit 3 (`p0-shop-frontend`) — DONE.** Its
+  acceptance was verified at the **component/integration level** (Vite test tooling with backend
   calls stubbed) plus a **production build succeeding** — NOT via Playwright or a live backend
   (those belong to unit 5).
-- **Run:** `make dev` starts API + UI with seeded SQLite.
+- **Run:** `make dev` starts API + UI with seeded SQLite. (Real `make dev` wiring is a small
+  follow-on at the exit gate; the exact launch commands are pinned in the unit-5 spec.)
 
-### B3. BRD + release convention
-- `reference_app/BRD.md` — **freeform** description of intended shop behavior.
-- Release convention: a `version` marker + tagging so a "release" bundles code + BRD and yields a
-  diff (used by Phase 1 Case 1 / Phase 4 change-detection). Document in `reference_app/README.md`.
+### B3. BRD + release convention — **DONE (unit 4, `p0-brd-release`)**
+- `reference_app/BRD.md` — **freeform** description of intended shop behavior (the human-readable
+  intended behavior that Phase 1 Case 1 / Phase 4 change-detection diff against). Covers the shop's
+  key flows in prose: auth, products, cart, checkout, orders, and order-total.
+- Release convention: a **version marker** (`reference_app/VERSION`) + a **git tag scheme** so a
+  "release" bundles code + BRD and yields a diff, documented in `reference_app/README.md`.
+- Docs + a documented convention + a version marker only — building the diff/hashing tooling itself
+  is Phase 4, out of scope.
 
-### B4. `eval/` injected-bug harness — the reliability gate
+### B4. `eval/` injected-bug harness — the reliability gate  (unit 6, `p0-eval-harness`, NOT YET)
 - **Bug injection:** buggy variants via env-flag/patch set. Ship ≥3 known bugs, e.g. (a) checkout
   total miscalculation, (b) cart quantity not updating, (c) auth check bypass on an order endpoint.
 - **Scorer (`eval/score.py`):** given a suite run against **clean vs each buggy** variant, compute
   **bug-catch rate**, **false-positive rate**, **flake** (re-run consistency), and an
   **assertion-meaningfulness** audit.
 - **Baseline:** a small **hand-written** Playwright suite so the harness is provably runnable before
-  any agent exists (agent plugs in at Phase 1).
+  any agent exists (agent plugs in at Phase 1) — builds on the unit-5 smoke project.
 
-### B5. Playwright TS project
-- `playwright.config.ts` + `tests/` targeting the reference app; one hand-written **smoke test**
-  (login → add to cart → checkout), **green on clean**, **red on a buggy variant** — validates the
-  runner end-to-end.
+### B5. Playwright TS project — **ACTIVE (unit 5, `p0-playwright-smoke`)**
+- A **TypeScript Playwright** project rooted at **`reference_app/e2e/`**:
+  `reference_app/e2e/playwright.config.ts` + `reference_app/e2e/tests/smoke.spec.ts` +
+  `reference_app/e2e/package.json` (dedicated `@playwright/test` project). Path chosen to avoid
+  collision with the root bash `tests/` suites and the frontend Vitest `src/__tests__`.
+- **One hand-written smoke test** through the browser UI: login (`testuser`/`testpass`) → add to
+  cart → view cart → checkout → assert the **order confirmation** with a **meaningful order-total
+  assertion** (order-total equals the pre-checkout cart total).
+- **Green on clean**, **red on a faulty variant.** The faulty variant is a **single documented
+  toggle `SMOKE_FAULT`** that surfaces a wrong order total, making the smoke's order-total assertion
+  fail (non-zero exit). Exactly one fault — the ≥3-bug catalog + scorer are deferred to unit 6 (B4).
+- **App launch:** Playwright `webServer` starts the backend
+  (`uv run uvicorn reference_app.backend.app:app --host 127.0.0.1 --port 8000`) and the frontend
+  (`npm run dev`, `127.0.0.1:5173`, `VITE_API_BASE_URL=http://127.0.0.1:8000`); `baseURL` =
+  `http://127.0.0.1:5173`; browser = Chromium.
+- **`make test`** (root Makefile) idempotently installs the e2e deps + Chromium, runs the smoke
+  against the clean app, and propagates the exit code. Full contract in
+  `.harness/tasks/p0-playwright-smoke.md`.
 
 ### Phase 0 acceptance
 - `make dev` runs API + UI; `/openapi.json` served; seed data + test account; `BRD.md` exists.
