@@ -1,0 +1,15 @@
+9:## 1. Objective
+35:## 2. Key Principle: configure the brain, don't build it
+45:## 3. System architecture — control plane / data plane
+82:## 4. Sub-agents (the Playwright Agents — "what the video says")
+95:## 5. Reliability layer (the actual product)
+110:## 6. Prompt layer
+133:## 7. Trigger flows
+146:## 8. Memory, versioning & consistency
+155:## 9. Evaluation & reference app
+163:## 10. Multi-tenancy
+180:## 11. Security model (first-class)
+198:## 12. Tech stack
+217:## 13. Repo / service layout
+238:## 14. Delivery roadmap (build sequence — detailed task plan pending approval)
+255:## 15. Open / deferred items

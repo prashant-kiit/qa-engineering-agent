@@ -1,0 +1,5 @@
+- Which cheap/open model + CLI per pricing tier (eval-driven).
+- Global-heuristics **anonymization implementation** — the guarantee that no tenant identifiers/URLs/data/selectors leak into the shared tier — plus tenant disclaimer wording.
+- Exact GitHub Actions integration shape (workflow/app, how BRD + code diff are delivered per release, PR/checks wiring).
+- Target-app auth beyond **Basic Auth** (SSO/MFA test accounts) for later tiers.
+- Data residency / retention policy per tenant tier; memory episodic-decay thresholds.
