@@ -27,13 +27,10 @@ fail() { printf 'FAIL: %s\n' "$1"; FAILS=$((FAILS + 1)); }
 if [[ ! -d "$REFAPP" ]]; then
   echo "SCAFFOLD ERROR: reference_app/ not found at $REFAPP"; exit 2
 fi
-if [[ ! -f "$README_BASELINE" || ! -f "$PROTECTED_BASELINE" ]]; then
-  echo "SCAFFOLD ERROR: baseline fixtures missing under $FIX_DIR"; exit 2
-fi
-# The sub-READMEs whose immutability we assert must exist to be a meaningful baseline.
-if [[ ! -f "$REFAPP/backend/README.md" || ! -f "$REFAPP/frontend/README.md" ]]; then
-  echo "SCAFFOLD ERROR: pre-existing sub-READMEs missing (baseline invalid)"; exit 2
-fi
+# The frozen baseline fixtures + pre-existing sub-READMEs are consumed ONLY by the
+# retired, opt-in point-in-time diff guards (C19/C20); their presence is asserted inside
+# the BRD_DIFF_GUARD block, not here, so the always-run content suite (C1-C18) stays
+# independent of them.
 
 # case-insensitive extended-regex grep against a file (safe if file missing).
 file_has() { [[ -f "$1" ]] && grep -qiE "$2" "$1"; }
@@ -219,22 +216,44 @@ fi
 
 # ===========================================================================
 # No regressions  (criteria 19-20)
+#
+# RETIRED FROM THE ALWAYS-RUN SUITE (harness decision) — mirrors the p0-scaffold suite's
+# SCAFFOLD_DIFF_GUARD treatment. C19 (sub-README hash-compare) and C20 (protected-doc +
+# backend/frontend source hash-compare) are point-in-time diff guards against baselines
+# frozen at this unit's dev-start. They correctly gated p0-brd-release at ship time, but
+# they are NOT reentrant: every later /tdd|/auto cycle legitimately mutates harness-managed
+# protected files (the TPM's plan-lock edits AGILE_PLAN.md; .harness/** evolves), so a
+# frozen whole-set hash-compare trips on every subsequent run forever. Now opt-in: they run
+# only when BRD_DIFF_GUARD=1; the default invocation SKIPs them (printing a SKIP: line) and
+# stays green. The genuinely-reentrant BRD/README/VERSION content & structure checks
+# (C1-C18) always run. Gated, not gutted — BRD_DIFF_GUARD=1 fully executes them.
 # ===========================================================================
+if [[ "${BRD_DIFF_GUARD:-0}" == "1" ]]; then
+  # baseline fixtures + pre-existing sub-READMEs must exist for a meaningful guard run.
+  if [[ ! -f "$README_BASELINE" || ! -f "$PROTECTED_BASELINE" ]]; then
+    echo "SCAFFOLD ERROR: baseline fixtures missing under $FIX_DIR (required by BRD_DIFF_GUARD=1)"; exit 2
+  fi
+  if [[ ! -f "$REFAPP/backend/README.md" || ! -f "$REFAPP/frontend/README.md" ]]; then
+    echo "SCAFFOLD ERROR: pre-existing sub-READMEs missing (baseline invalid)"; exit 2
+  fi
 
-# Criterion 19: pre-existing backend/frontend READMEs unchanged (content sha256 vs baseline).
-if ( cd "$REPO_ROOT" && shasum -a 256 -c "$README_BASELINE" ) >/dev/null 2>&1; then
-  pass "C19: backend/README.md & frontend/README.md unchanged (additive docs)"
-else
-  fail "C19: a pre-existing sub-README changed vs baseline (should be untouched)"
-  ( cd "$REPO_ROOT" && shasum -a 256 -c "$README_BASELINE" 2>&1 | grep -v ': OK$' | sed 's/^/       /' )
-fi
+  # Criterion 19: pre-existing backend/frontend READMEs unchanged (content sha256 vs baseline).
+  if ( cd "$REPO_ROOT" && shasum -a 256 -c "$README_BASELINE" ) >/dev/null 2>&1; then
+    pass "C19: backend/README.md & frontend/README.md unchanged (additive docs)"
+  else
+    fail "C19: a pre-existing sub-README changed vs baseline (should be untouched)"
+    ( cd "$REPO_ROOT" && shasum -a 256 -c "$README_BASELINE" 2>&1 | grep -v ': OK$' | sed 's/^/       /' )
+  fi
 
-# Criterion 20: no protected file & no backend/frontend source modified (content sha256 vs baseline).
-if ( cd "$REPO_ROOT" && shasum -a 256 -c "$PROTECTED_BASELINE" ) >/dev/null 2>&1; then
-  pass "C20: protected docs & backend/frontend source unchanged"
+  # Criterion 20: no protected file & no backend/frontend source modified (content sha256 vs baseline).
+  if ( cd "$REPO_ROOT" && shasum -a 256 -c "$PROTECTED_BASELINE" ) >/dev/null 2>&1; then
+    pass "C20: protected docs & backend/frontend source unchanged"
+  else
+    fail "C20: a protected/source file changed vs baseline (must not be modified by this unit)"
+    ( cd "$REPO_ROOT" && shasum -a 256 -c "$PROTECTED_BASELINE" 2>&1 | grep -v ': OK$' | sed 's/^/       /' )
+  fi
 else
-  fail "C20: a protected/source file changed vs baseline (must not be modified by this unit)"
-  ( cd "$REPO_ROOT" && shasum -a 256 -c "$PROTECTED_BASELINE" 2>&1 | grep -v ': OK$' | sed 's/^/       /' )
+  printf 'SKIP: C19/C20 (sub-README + protected-doc/source hash-compare vs frozen baseline) — retired point-in-time diff guards, non-reentrant by design (harness plan-lock edits AGILE_PLAN.md per cycle); set BRD_DIFF_GUARD=1 to run.\n'
 fi
 
 echo "-----------------------------------------------------------------------"

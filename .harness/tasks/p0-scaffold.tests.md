@@ -28,7 +28,7 @@ this unit's *developer* work only — not to the TPM's earlier plan-lock edits.
 | 3 | `git ls-files` lists a tracked file inside each §13 dir | C3 — per-dir tracked-file count `>= 1` |
 | 4 | Root Python manifest exists and is parseable by `uv` | C4a `pyproject.toml` present; C4b `uv lock --check` (fallback `uv tree`) exits 0 |
 | 5 | Root `Makefile` defines `dev`/`test`/`eval`/`release` + a list/help target | C5a Makefile present; C5b targets resolve via `make -n` (no "no rule"); C5c help/list target (help/list/targets/default) resolves |
-| 6 | Each `make dev/test/eval/release` invocable, exits 0, names its later unit | C6 — run each target, assert rc 0 AND output matches the owning-unit regex (`dev`/`test`→units 2–5; `eval`→unit 6/`p0-eval-harness`; `release`→unit 4/`p0-brd-release`) |
+| 6 | Makefile targets wired correctly | C6a — the still-unimplemented placeholders `dev`/`eval`/`release` are invocable, exit 0, and name their owning later unit (`eval`→unit 6/`p0-eval-harness`; `release`→unit 4/`p0-brd-release`); C6b — `test` is now the REAL Playwright smoke (unit 5, `p0-playwright-smoke`), so it is asserted DEFINED and wired to the e2e/Playwright smoke via a dry-run `make -n test` grep (`playwright|e2e`) and is **NOT executed** (running it would launch backend+frontend servers and headless Chromium). `test` was removed from the placeholder-execution loop. |
 | 7 | Help/list target lists all four targets | C7 — help output contains `dev`, `test`, `eval`, `release` |
 | 8 | `.gitignore` ignores `.venv/`, `node_modules/`, `*.db`, Playwright artifacts | C8 — `git check-ignore -q` for `.venv/`, `node_modules/`, `*.db`, `test-results/`, `playwright-report/`, and a Playwright cache path |
 | 9 | No pre-existing `.gitignore` entry removed (additive) | C9 — every non-blank baseline line still present in current `.gitignore` |
@@ -161,9 +161,20 @@ baselines (`p0-scaffold-protected-baseline.txt`, `p0-scaffold-tracked-baseline.t
 `SCAFFOLD_DIFF_GUARD=1` block (the reentrant C9 still requires `gitignore-baseline.txt`).
 
 **Retained (still always-run, reentrant, still meaningfully passing):** C1/C3 (§13 dirs
-present & git-tracked), C4 (`pyproject.toml` parseable by `uv`), C5/C6/C7 (Makefile
-targets defined, invocable, help lists them), C8 (`.gitignore` ignore patterns), and C9
-(additive `.gitignore` preservation vs the gitignore baseline — not a full-repo snapshot).
+present & git-tracked), C4 (`pyproject.toml` parseable by `uv`), C5 (Makefile targets
+defined + help/list), **C6a** (`dev`/`eval`/`release` placeholders exit 0 + name their
+later unit) / **C6b** (`test` DEFINED and wired to the e2e/Playwright smoke via `make -n
+test`, **not executed** — unit 5 replaced the `make test` placeholder with the real smoke),
+C7 (help lists all four), C8 (`.gitignore` ignore patterns), and C9 (additive `.gitignore`
+preservation vs the gitignore baseline — not a full-repo snapshot).
+
+**C6 update (unit 5, `p0-playwright-smoke`):** unit 5's spec mandates replacing the `make
+test` placeholder with the real Playwright smoke, so C6 was split: C6a keeps the
+exit-0 + unit-naming placeholder check for the three still-unimplemented targets
+(`dev`/`eval`/`release`), and C6b verifies `test` is real & smoke-wired **without running
+it** (dry-run only — running it would spin up backend/frontend servers + headless
+Chromium, wrong for this lightweight reentrant structure suite). `test` was removed from
+the placeholder-execution loop.
 
 ### Green run output — default invocation in the current (dirty) working tree
 ```
@@ -175,7 +186,8 @@ PASS: C4b: uv parses the root project manifest without error
 PASS: C5a: root Makefile exists (/Users/prashant/Desktop/Project/qa-engineering-agent/Makefile)
 PASS: C5b: Makefile defines targets dev, test, eval, release
 PASS: C5c: a list/help target is defined (resolved as: help)
-PASS: C6: make dev/test/eval/release all exit 0 with unit-naming placeholder output
+PASS: C6a: make dev/eval/release exit 0 with unit-naming placeholder output
+PASS: C6b: make test is implemented + wired to the e2e Playwright smoke (not executed here)
 PASS: C7: help/list target lists all four targets (dev, test, eval, release)
 PASS: C8: .gitignore ignores .venv/, node_modules/, *.db, and Playwright artifacts
 PASS: C9: all pre-existing .gitignore entries preserved (additive edit only)
@@ -185,3 +197,27 @@ RESULT: all acceptance checks passed
 ```
 Exit code: 0 (green). The opt-in guards still execute when `SCAFFOLD_DIFF_GUARD=1`
 (exit 1 in the current dirty tree, confirming they are gated — not gutted).
+
+## C6 update — `make test` is now implemented (unit 5, `p0-playwright-smoke`)
+
+Unit 5's spec **mandates replacing** the `make test` placeholder with the REAL Playwright
+smoke run. So the original C6 (which ran `make dev/test/eval/release` and asserted each
+exits 0 with a *unit-naming placeholder* message) became outdated for `test`, and running
+it now would invoke the heavy browser smoke (launches backend + frontend + Chromium) —
+wrong for this lightweight, reentrant structure suite.
+
+**Fix (test-only):** C6 is split so the real `make test` is never executed here:
+- **C6a** — the still-placeholder targets `dev`/`eval`/`release` remain invocable, exit 0,
+  and name their owning later unit (unchanged behavior; `test` removed from this loop and
+  from `unit_hint`).
+- **C6b** — `make test` is asserted **defined** (`target_defined test`) and **wired to the
+  e2e Playwright smoke** via a dry-run (`make -n test`, which prints the recipe without
+  executing it) grepped for `playwright|e2e`. No servers or browser are launched.
+
+Both pass in the current tree:
+```
+PASS: C6a: make dev/eval/release exit 0 with unit-naming placeholder output
+PASS: C6b: make test is implemented + wired to the e2e Playwright smoke (not executed here)
+```
+The reentrant Makefile coverage (targets defined C5b, help lists them C7) is unchanged; the
+retired C2/C10/C11 stay gated behind `SCAFFOLD_DIFF_GUARD=1`.

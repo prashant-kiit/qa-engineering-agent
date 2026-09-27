@@ -211,33 +211,55 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Criterion 6: each of make dev/test/eval/release is invocable, exits 0, and
-# prints a placeholder message naming the later unit that will implement it.
+# Criterion 6: the four Makefile targets are wired correctly.
+#
+# UPDATED (unit 5, p0-playwright-smoke): that unit's spec MANDATES replacing the
+# `make test` PLACEHOLDER with the REAL Playwright smoke run. So `make test` is now
+# implemented — and must NOT be executed here: running it launches the backend +
+# frontend servers and a headless Chromium (heavy/slow), which is wrong for this
+# lightweight, reentrant structure suite. We therefore:
+#   C6a — the still-unimplemented placeholders (dev/eval/release) remain invocable,
+#         exit 0, and name the later unit that will implement them.
+#   C6b — `test` is defined (real, not a placeholder) and wired to the e2e Playwright
+#         smoke, verified WITHOUT executing it (dry-run `make -n test`, no servers/browser).
 # ---------------------------------------------------------------------------
 # per-target regex naming the later unit that will implement the placeholder
 unit_hint() {
   case "$1" in
-    dev|test) printf '%s' "p0-(shop-(backend|frontend)|playwright-smoke)|unit ?[2-5]" ;;
+    dev)      printf '%s' "p0-(shop-(backend|frontend)|playwright-smoke)|unit ?[2-5]" ;;
     eval)     printf '%s' "p0-eval-harness|unit ?6" ;;
     release)  printf '%s' "p0-brd-release|unit ?4" ;;
   esac
 }
-c6_fails=0
-for t in dev test eval release; do
+c6a_fails=0
+for t in dev eval release; do
   out="$(cd "$REPO_ROOT" && make "$t" 2>&1)"; rc=$?
   if [[ $rc -ne 0 ]]; then
-    c6_fails=$((c6_fails + 1)); printf '       make %s exited %d (expected 0)\n' "$t" "$rc"; continue
+    c6a_fails=$((c6a_fails + 1)); printf '       make %s exited %d (expected 0)\n' "$t" "$rc"; continue
   fi
   # must print a not-yet-implemented style placeholder that names the owning later unit
   if ! printf '%s' "$out" | grep -qiE "$(unit_hint "$t")"; then
-    c6_fails=$((c6_fails + 1))
+    c6a_fails=$((c6a_fails + 1))
     printf '       make %s output does not name its later unit; got: %s\n' "$t" "$out"
   fi
 done
-if [[ "$c6_fails" -eq 0 ]]; then
-  pass "C6: make dev/test/eval/release all exit 0 with unit-naming placeholder output"
+if [[ "$c6a_fails" -eq 0 ]]; then
+  pass "C6a: make dev/eval/release exit 0 with unit-naming placeholder output"
 else
-  fail "C6: $c6_fails target(s) failed exit-0 + placeholder-message check"
+  fail "C6a: $c6a_fails placeholder target(s) failed exit-0 + placeholder-message check"
+fi
+
+# `make test` is now the REAL Playwright smoke (unit 5). Do NOT run it here — assert
+# only that it is defined and wired to the e2e Playwright smoke via a dry-run.
+if target_defined test; then
+  test_dry="$(cd "$REPO_ROOT" && make -n test 2>&1)"
+  if printf '%s' "$test_dry" | grep -qiE "(playwright|e2e)"; then
+    pass "C6b: make test is implemented + wired to the e2e Playwright smoke (not executed here)"
+  else
+    fail "C6b: make test defined but not wired to the e2e Playwright smoke; dry-run was: $test_dry"
+  fi
+else
+  fail "C6b: make test target is not defined"
 fi
 
 # ---------------------------------------------------------------------------
