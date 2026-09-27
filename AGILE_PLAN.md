@@ -5,8 +5,9 @@
 > this is the living working-detail. `DESIGN.md` remains the architecture source of truth.
 
 ## Conflicts / deviations for human review
-- **None.** Current repo (docs + harness + units 0–1 done: doc note + scaffold/tooling) is consistent
-  with `META_PLAN.md` Phase 0 and `DESIGN.md`. Proceeding.
+- **None.** Current repo (docs + harness + units 0–2 done: doc note + scaffold/tooling +
+  FastAPI/SQLite shop backend) is consistent with `META_PLAN.md` Phase 0 and `DESIGN.md`. Proceeding
+  to unit 3 (`p0-shop-frontend`).
 
 ## Task 0 (do first): record post-v1 scope in `DESIGN.md §15`
 Add to `DESIGN.md §15`:
@@ -16,24 +17,31 @@ Add to `DESIGN.md §15`:
 
 **Status:** DONE (unit `p0-design-note`, commit `50bf25a`). Note present in `DESIGN.md §15`.
 
-## Phase 0 — Testbed & scaffolding  — LOCKED for this iteration (2026-09-27, re-confirmed)
+## Phase 0 — Testbed & scaffolding  — LOCKED for this iteration (2026-09-27, re-confirmed at unit 3)
 
 **Current app state:** repo contains docs (`DESIGN.md`, `META_PLAN.md`, this file, `CLAUDE.md`),
 harness config (`.harness/`, `.claude/`), `.gitignore`, `LICENSE`. **Unit 0 (`p0-design-note`) is
 `done`** — the post-v1 note is present in `DESIGN.md §15` (commit `50bf25a`). **Unit 1
 (`p0-scaffold`) is `done`** — the full `DESIGN.md §13` directory tree with placeholders, a root `uv`
 project manifest (`pyproject.toml`), a root `Makefile` with placeholder `dev`/`test`/`eval`/`release`
-+ `help` targets, and the extended `.gitignore` are all present (commit `d958ac6`, branch
-`harness/p0-scaffold`). **No application source yet:** `reference_app/backend/` and
-`reference_app/frontend/` hold only `.gitkeep` placeholders; no `eval/` logic, no Playwright project.
-Active unit: **2 (`p0-shop-backend`)** — dep `p0-scaffold` is met. Remaining units 3–6 build the shop
-frontend, BRD/release convention, Playwright smoke, and the `eval/` harness on top of it.
++ `help` targets, and the extended `.gitignore` are all present (commit `d958ac6`). **Unit 2
+(`p0-shop-backend`) is `done`** — a runnable **FastAPI + SQLite** shop backend lives at
+`reference_app/backend/app.py`, importable as `reference_app.backend.app:app` and servable on
+`http://127.0.0.1:8000` (commit `0ea16c8`, branch `harness/p0-shop-backend`). It implements HTTP
+Basic Auth (`testuser`/`testpass`), a **fixed 5-product seed catalog**, a per-user cart with
+cumulative add-to-cart, checkout→order, order retrieval, correct order-total, and an auto-served
+`/openapi.json` (routes `/products`, `/cart`, `/cart/items`, `/checkout`, `/orders/{id}`). The
+backend API contract the UI must talk to is fully specified in `.harness/tasks/p0-shop-backend.md`.
+**No frontend yet:** `reference_app/frontend/` holds only a `.gitkeep`; no `eval/` logic, no
+Playwright project, no `BRD.md`. Active unit: **3 (`p0-shop-frontend`)** — dep `p0-shop-backend` is
+`done` (met). Remaining units 4–6 build the BRD/release convention, the Playwright smoke, and the
+`eval/` harness on top of it.
 
 **Environment note (informs, does not override META_PLAN/DESIGN):** the dev machine has `uv` and GNU
-`make` available; `poetry` and `just` are **not** installed. This iteration therefore targets **`uv`
-for the Python env + a `Makefile`** for the `dev`/`test`/`eval`/`release` targets. Node + `npx` are
-available for the later Playwright units. The Phase 0 stack is **FastAPI + SQLite** for the backend
-(auto-served `/openapi.json`), per `DESIGN.md §12` and B2 below.
+`make` available; Node + `npx` are available for the frontend and later Playwright units. The Phase 0
+frontend stack is **React + Vite** (per `DESIGN.md §12` and B2 below). Component/integration testing
+for the frontend uses the Vite-native test tooling with the browser DOM emulated and backend calls
+stubbed; the full browser E2E smoke against a live app is a **separate later unit (5)**.
 
 **Locked ordered units** (source of truth: `.harness/backlog.md`; scope: B1–B5 below):
 
@@ -41,8 +49,8 @@ available for the later Playwright units. The Phase 0 stack is **FastAPI + SQLit
 |---|----|-----------|--------|
 | 0 | `p0-design-note` | — | done |
 | 1 | `p0-scaffold` | — | done |
-| 2 | `p0-shop-backend` | `p0-scaffold` | **active** |
-| 3 | `p0-shop-frontend` | `p0-shop-backend` | todo |
+| 2 | `p0-shop-backend` | `p0-scaffold` | done |
+| 3 | `p0-shop-frontend` | `p0-shop-backend` | **active** |
 | 4 | `p0-brd-release` | `p0-shop-backend` | todo |
 | 5 | `p0-playwright-smoke` | `p0-shop-frontend` | todo |
 | 6 | `p0-eval-harness` | `p0-playwright-smoke`, `p0-shop-backend` | todo |
@@ -67,9 +75,13 @@ runner/  eval/  control_plane/{api,orchestration,stores,frontend}/  sandbox/
 - **Backend (`reference_app/backend/`):** Basic Auth (username/password), products, cart,
   add-to-cart, checkout → create order, get order, order-total calc. FastAPI auto-serves
   `/openapi.json` (the spec the agent grounds API tests on). Seed data: products + one test account.
-  **This is unit 2 (`p0-shop-backend`) — the clean backend + seed only.**
+  **This is unit 2 (`p0-shop-backend`) — DONE.**
 - **Frontend (`reference_app/frontend/`, React + Vite):** login, product list, cart, checkout,
-  order-confirmation — talks to the backend. (Unit 3.)
+  order-confirmation — talks to the backend (Basic Auth; routes/shapes per
+  `.harness/tasks/p0-shop-backend.md`). **This is unit 3 (`p0-shop-frontend`) — ACTIVE.** Its
+  acceptance is verified at the **component/integration level** (Vite test tooling with backend
+  calls stubbed) plus a **production build succeeding** — NOT via Playwright or a live backend
+  (those belong to unit 5).
 - **Run:** `make dev` starts API + UI with seeded SQLite.
 
 ### B3. BRD + release convention
