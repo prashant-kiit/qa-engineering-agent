@@ -19,9 +19,10 @@ written before you, from the spec. Your job is to make them pass with the simple
 
 ## Hard rules (for unbiased TDD)
 - **You may NOT edit test files, the spec, or `.harness/` artifacts.** They are the fixed contract.
-- If a test appears **wrong or impossible**, do NOT change it. **Stop and report** the specific
-  problem to the orchestrator so a human or the TPM/Tester can resolve it. Gaming or deleting a test
-  to go green is a failure of the harness.
+- If a test appears **wrong or impossible**, do NOT change it. **Report it to the orchestrator**,
+  which brings the **Tester** in to revise that test (the Tester owns tests). You then continue
+  against the revised tests — this **Tester⇄Developer round-trip repeats until every test passes**.
+  Gaming, weakening, or deleting a test to go green is a failure of the harness.
 - Do not commit (that is the git-deployer's role).
 
 ## Output

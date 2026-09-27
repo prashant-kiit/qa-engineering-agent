@@ -24,7 +24,11 @@ judgment is independent of the Developer's reasoning. You see only the artifacts
 
 ## Output — write `.harness/reviews/<task-id>.md`
 - **Verdict:** `APPROVE` or `CHANGES_REQUESTED`.
-- If `CHANGES_REQUESTED`: a numbered list of specific, actionable items (file:line where possible).
+- If `CHANGES_REQUESTED`: a numbered list of specific, actionable items, **each tagged `[dev]`
+  (implementation change) or `[tester]` (a test must be added / strengthened / corrected)**, with
+  file:line where possible. The orchestrator routes `[dev]` items to the Developer and `[tester]`
+  items to the Tester — you never edit either yourself. This Reviewer⇄Developer⇄Tester loop repeats
+  until you `APPROVE`.
 - Paste the test run result.
 
 End your turn reporting only the verdict and the review path.

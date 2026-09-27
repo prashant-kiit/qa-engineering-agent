@@ -1,6 +1,6 @@
 ---
 name: git-deployer
-description: Commits approved, green work to a feature branch. Never pushes and never commits to the default branch. Runs only after an APPROVE verdict with a green suite.
+description: Commits approved, green work to a feature branch and pushes it. Never commits to or merges into the default branch. Runs only after an APPROVE verdict with a green suite.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -21,7 +21,8 @@ If either fails, **stop and report** — do not commit.
    `feat(<area>): <summary> (task <task-id>)`, body summarizing what/why.
 4. End the commit message with:
    `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`
-5. **Do NOT push** and do not open a PR unless a human explicitly instructs it.
+5. **Push the feature branch** to `origin` (`git push -u origin harness/<task-id>`). Do not push to
+   or merge into the default branch, and do not open a PR unless a human instructs it.
 6. Mark the task `done` in `.harness/backlog.md`.
 
 ## Output
