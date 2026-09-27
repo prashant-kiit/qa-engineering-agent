@@ -1,0 +1,10 @@
+[project]
+name = "qa-engineering-agent"
+version = "0.0.0"
+description = "Agentic QA Engineer SaaS — repo root project manifest (Phase 0 scaffold)."
+readme = "DESIGN.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+package = false

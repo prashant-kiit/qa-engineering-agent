@@ -5,7 +5,7 @@
 > this is the living working-detail. `DESIGN.md` remains the architecture source of truth.
 
 ## Conflicts / deviations for human review
-- **None.** Current repo (docs + harness only; no source yet) is consistent with `META_PLAN.md`
+- **None.** Current repo (docs + harness + unit-0 doc note) is consistent with `META_PLAN.md`
   Phase 0 and `DESIGN.md`. Proceeding.
 
 ## Task 0 (do first): record post-v1 scope in `DESIGN.md §15`
@@ -14,11 +14,21 @@ Add to `DESIGN.md §15`:
 > SSO/MFA; (b) data residency & retention policy per tenant tier. All other §15 items are
 > implemented in-phase; only their fine detail / eval-driven choice is deferred.
 
-## Phase 0 — Testbed & scaffolding  — LOCKED for this iteration (2026-09-27)
+**Status:** DONE (unit `p0-design-note`, commit `50bf25a`). Note present in `DESIGN.md §15`.
+
+## Phase 0 — Testbed & scaffolding  — LOCKED for this iteration (2026-09-27, re-confirmed)
 
 **Current app state:** repo contains docs (`DESIGN.md`, `META_PLAN.md`, this file, `CLAUDE.md`),
-harness config (`.harness/`, `.claude/`), `.gitignore`, `LICENSE`. **No application source, no
-`reference_app/`, no `eval/`, no Playwright project exist yet.** Phase 0 builds all of it from zero.
+harness config (`.harness/`, `.claude/`), `.gitignore`, `LICENSE`. **Unit 0 (`p0-design-note`) is
+`done`** — the explicit post-v1 note is present in `DESIGN.md §15` (commit `50bf25a`). **No
+application source, no `reference_app/`, no `eval/`, no root tooling (Makefile/uv project), and no
+Playwright project exist yet.** Active unit: **1 (`p0-scaffold`)** — deps met (none). Remaining units
+2–6 build the shop app, BRD/release convention, Playwright smoke, and the `eval/` harness from zero.
+
+**Environment note (informs, does not override META_PLAN/DESIGN):** the dev machine has `uv` and GNU
+`make` available; `poetry` and `just` are **not** installed. This iteration therefore targets **`uv`
+for the Python env + a `Makefile`** for the `dev`/`test`/`eval`/`release` targets. Node + `npx` are
+available for the later Playwright units.
 
 **Locked ordered units** (source of truth: `.harness/backlog.md`; scope: B1–B5 below):
 

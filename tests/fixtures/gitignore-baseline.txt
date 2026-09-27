@@ -219,15 +219,3 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-
-# Node / frontend deps (reference_app + control_plane frontends)
-node_modules/
-
-# SQLite database files (reference shop app)
-*.db
-
-# Playwright run artifacts
-test-results/
-playwright-report/
-playwright/.cache/
-blob-report/
