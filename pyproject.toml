@@ -8,3 +8,20 @@ dependencies = []
 
 [tool.uv]
 package = false
+
+# Test-only dependencies for the p0-shop-backend pytest suite (TDD red).
+# fastapi provides the in-process ASGI TestClient (needs httpx) the API tests drive;
+# pytest is the runner. These let `uv run pytest` execute the backend suite.
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "httpx>=0.27",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+]
+
+[tool.pytest.ini_options]
+# Repo root on sys.path so `import reference_app.backend.app` resolves via the
+# binding ASGI import path declared in the task spec.
+pythonpath = ["."]
+testpaths = ["reference_app/backend/tests"]

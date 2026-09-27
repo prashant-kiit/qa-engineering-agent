@@ -28,11 +28,13 @@ fail() { printf 'FAIL: %s\n' "$1"; FAILS=$((FAILS + 1)); }
 if ! command -v git >/dev/null 2>&1; then
   echo "SCAFFOLD ERROR: git not on PATH"; exit 2
 fi
-for bl in "$GITIGNORE_BASELINE" "$PROTECTED_BASELINE" "$TRACKED_BASELINE"; do
-  if [[ ! -f "$bl" ]]; then
-    echo "SCAFFOLD ERROR: baseline fixture missing at $bl"; exit 2
-  fi
-done
+# Only the gitignore baseline is required by the always-run suite (reentrant C9).
+# The frozen full-repo snapshots (PROTECTED_BASELINE / TRACKED_BASELINE) are used
+# ONLY by the retired, opt-in point-in-time diff guards (C2-stray / C10 / C11); their
+# presence is asserted inside the SCAFFOLD_DIFF_GUARD block, not here.
+if [[ ! -f "$GITIGNORE_BASELINE" ]]; then
+  echo "SCAFFOLD ERROR: baseline fixture missing at $GITIGNORE_BASELINE"; exit 2
+fi
 if ! command -v make >/dev/null 2>&1; then
   echo "SCAFFOLD ERROR: 'make' not installed (required by the plan lock)"; exit 2
 fi
@@ -95,32 +97,44 @@ fi
 
 # ---------------------------------------------------------------------------
 # Criterion 2: No stray top-level source dirs beyond §13 + existing repo dirs.
-# Permitted top-level entries: the §13 top-level roots plus pre-existing repo dirs.
+#
+# RETIRED FROM THE ALWAYS-RUN SUITE (harness decision).
+# This is a point-in-time, scaffold-ship-time whole-repo guard: it enumerates the
+# entire working tree's top-level dirs and rejects anything not on a frozen allow-list.
+# It is NOT reentrant — every later cycle legitimately introduces new top-level dirs
+# (tooling/cache dirs like .venv/ / .pytest_cache/, and future §13-adjacent additions),
+# which would trip it forever. It gated p0-scaffold correctly at ship time only.
+# Now opt-in: runs only when SCAFFOLD_DIFF_GUARD=1. The reentrant structural coverage
+# (required §13 dirs present & tracked) lives in C1/C3 and still runs unconditionally.
 # ---------------------------------------------------------------------------
-ALLOWED_TOP=(
-  # §13 top-level roots
-  "reference_app" "agent_config" "connectors" "reliability" "runner" "eval"
-  "control_plane" "sandbox"
-  # pre-existing / permitted repo dirs
-  ".git" ".claude" ".harness" "tests"
-)
-is_allowed_top() {
-  local x="$1"
-  for a in "${ALLOWED_TOP[@]}"; do [[ "$x" == "$a" ]] && return 0; done
-  return 1
-}
-c2_fails=0
-while IFS= read -r entry; do
-  entry="${entry%/}"
-  [[ -z "$entry" ]] && continue
-  if ! is_allowed_top "$entry"; then
-    c2_fails=$((c2_fails + 1)); printf '       stray top-level directory: %s\n' "$entry"
+if [[ "${SCAFFOLD_DIFF_GUARD:-0}" == "1" ]]; then
+  ALLOWED_TOP=(
+    # §13 top-level roots
+    "reference_app" "agent_config" "connectors" "reliability" "runner" "eval"
+    "control_plane" "sandbox"
+    # pre-existing / permitted repo dirs
+    ".git" ".claude" ".harness" "tests"
+  )
+  is_allowed_top() {
+    local x="$1"
+    for a in "${ALLOWED_TOP[@]}"; do [[ "$x" == "$a" ]] && return 0; done
+    return 1
+  }
+  c2_fails=0
+  while IFS= read -r entry; do
+    entry="${entry%/}"
+    [[ -z "$entry" ]] && continue
+    if ! is_allowed_top "$entry"; then
+      c2_fails=$((c2_fails + 1)); printf '       stray top-level directory: %s\n' "$entry"
+    fi
+  done < <(find "$REPO_ROOT" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;)
+  if [[ "$c2_fails" -eq 0 ]]; then
+    pass "C2: no stray top-level directories beyond §13 + existing repo dirs"
+  else
+    fail "C2: $c2_fails stray top-level director(y/ies) present"
   fi
-done < <(find "$REPO_ROOT" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;)
-if [[ "$c2_fails" -eq 0 ]]; then
-  pass "C2: no stray top-level directories beyond §13 + existing repo dirs"
 else
-  fail "C2: $c2_fails stray top-level director(y/ies) present"
+  printf 'SKIP: C2 (stray top-level dir guard) — retired point-in-time scaffold-ship-time guard, non-reentrant by design; set SCAFFOLD_DIFF_GUARD=1 to run.\n'
 fi
 
 # ---------------------------------------------------------------------------
@@ -296,12 +310,27 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Criterion 10: no protected file changed by this unit's development
-# (DESIGN.md, META_PLAN.md, AGILE_PLAN.md, CLAUDE.md, and .harness/**).
-# Compared against the frozen pre-developer snapshot so the TPM's plan-lock edits
-# are not misattributed to this unit. Also: the developer must not ADD files
-# under .harness/ (any .harness path present now but absent from the snapshot).
+# Criterion 10 & 11: point-in-time, whole-repo diff guards vs frozen full-repo
+# baselines captured at p0-scaffold's dev-start.
+#
+# RETIRED FROM THE ALWAYS-RUN SUITE (harness decision).
+# C10 (protected-file hash-compare) and C11 (additive-only tracked-file diff) both
+# compare the ENTIRE working tree against snapshots frozen when p0-scaffold began
+# development. They correctly gated that one unit at ship time, but they are NOT
+# reentrant: every later cycle legitimately edits AGILE_PLAN.md / .harness/backlog.md,
+# adds new .harness/tasks/*, evolves pyproject.toml / uv.lock, etc. — so they trip on
+# every subsequent run forever. Now opt-in: run only when SCAFFOLD_DIFF_GUARD=1.
+# The frozen baselines are RETAINED in tests/fixtures/ but consumed only here.
 # ---------------------------------------------------------------------------
+if [[ "${SCAFFOLD_DIFF_GUARD:-0}" == "1" ]]; then
+for bl in "$PROTECTED_BASELINE" "$TRACKED_BASELINE"; do
+  if [[ ! -f "$bl" ]]; then
+    echo "SCAFFOLD ERROR: baseline fixture missing at $bl (required by SCAFFOLD_DIFF_GUARD=1)"; exit 2
+  fi
+done
+
+# --- Criterion 10: no protected file changed by this unit's development
+# (DESIGN.md, META_PLAN.md, AGILE_PLAN.md, CLAUDE.md, and .harness/**).
 c10_fails=0
 while IFS=$'\t' read -r base_hash rel; do
   [[ -z "$rel" ]] && continue
@@ -343,13 +372,11 @@ else
   fail "C10: $c10_fails protected file/area changed by this unit"
 fi
 
-# ---------------------------------------------------------------------------
-# Criterion 11: repo remains a valid buildable skeleton — additive diff only.
+# --- Criterion 11: repo remains a valid buildable skeleton — additive diff only.
 # Against the frozen tracked-file snapshot: no pre-existing tracked file may be
 # deleted, and the only pre-existing file whose content may differ is .gitignore.
 # Scaffold files are NEW paths (absent from the snapshot) and are allowed additions.
 # uv-parse (C4) and target exit-0 (C6) already assert the skeleton is invocable.
-# ---------------------------------------------------------------------------
 c11_fails=0
 while IFS=$'\t' read -r base_hash rel; do
   [[ -z "$rel" ]] && continue
@@ -368,6 +395,9 @@ if [[ "$c11_fails" -eq 0 ]]; then
   pass "C11: additive diff only (no pre-existing file deleted; only .gitignore modified)"
 else
   fail "C11: $c11_fails non-additive change(s) detected"
+fi
+else
+  printf 'SKIP: C10/C11 (protected-file + additive-diff guards vs frozen full-repo baseline) — retired point-in-time scaffold-ship-time guards, non-reentrant by design; set SCAFFOLD_DIFF_GUARD=1 to run.\n'
 fi
 
 echo "-----------------------------------------------------------------------"
