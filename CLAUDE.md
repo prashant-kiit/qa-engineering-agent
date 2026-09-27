@@ -34,6 +34,14 @@ next unit from `AGILE_PLAN.md` + `.harness/backlog.md`.
 **Do not hand-write application code outside a `/tdd` cycle** — that bypasses the tests, review, and
 gates that make the build trustworthy and aligned to `DESIGN.md`/`META_PLAN.md`.
 
+### Auto mode
+```
+/auto [phase or scope]
+```
+Runs the full cycle for **every** backlog unit (auto-approving the gates) until the active phase's
+exit gate passes — one command instead of one `/tdd` per unit. Stops only on a blocker, a
+design conflict, or a capped loop. The deploy-gate hook still enforces review-before-push.
+
 ### Unbiasedness rules (enforced by the orchestrator)
 - Never pass an agent the previous agent's chat/reasoning — pass only the **artifact files**.
 - The Tester writes tests **before** the Developer implements, and does not see the implementation.
