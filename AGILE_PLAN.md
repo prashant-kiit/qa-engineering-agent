@@ -5,9 +5,9 @@
 > this is the living working-detail. `DESIGN.md` remains the architecture source of truth.
 
 ## Conflicts / deviations for human review
-- **None.** Current repo (docs + harness + units 0–2 done: doc note + scaffold/tooling +
-  FastAPI/SQLite shop backend) is consistent with `META_PLAN.md` Phase 0 and `DESIGN.md`. Proceeding
-  to unit 3 (`p0-shop-frontend`).
+- **None.** Current repo (docs + harness + units 0–3 done: doc note + scaffold/tooling +
+  FastAPI/SQLite shop backend + React/Vite shop frontend) is consistent with `META_PLAN.md`
+  Phase 0 and `DESIGN.md`. Proceeding to unit 4 (`p0-brd-release`).
 
 ## Task 0 (do first): record post-v1 scope in `DESIGN.md §15`
 Add to `DESIGN.md §15`:
@@ -17,7 +17,7 @@ Add to `DESIGN.md §15`:
 
 **Status:** DONE (unit `p0-design-note`, commit `50bf25a`). Note present in `DESIGN.md §15`.
 
-## Phase 0 — Testbed & scaffolding  — LOCKED for this iteration (2026-09-27, re-confirmed at unit 3)
+## Phase 0 — Testbed & scaffolding  — LOCKED for this iteration (2026-09-27, re-confirmed at unit 4)
 
 **Current app state:** repo contains docs (`DESIGN.md`, `META_PLAN.md`, this file, `CLAUDE.md`),
 harness config (`.harness/`, `.claude/`), `.gitignore`, `LICENSE`. **Unit 0 (`p0-design-note`) is
@@ -27,21 +27,27 @@ project manifest (`pyproject.toml`), a root `Makefile` with placeholder `dev`/`t
 + `help` targets, and the extended `.gitignore` are all present (commit `d958ac6`). **Unit 2
 (`p0-shop-backend`) is `done`** — a runnable **FastAPI + SQLite** shop backend lives at
 `reference_app/backend/app.py`, importable as `reference_app.backend.app:app` and servable on
-`http://127.0.0.1:8000` (commit `0ea16c8`, branch `harness/p0-shop-backend`). It implements HTTP
-Basic Auth (`testuser`/`testpass`), a **fixed 5-product seed catalog**, a per-user cart with
-cumulative add-to-cart, checkout→order, order retrieval, correct order-total, and an auto-served
-`/openapi.json` (routes `/products`, `/cart`, `/cart/items`, `/checkout`, `/orders/{id}`). The
-backend API contract the UI must talk to is fully specified in `.harness/tasks/p0-shop-backend.md`.
-**No frontend yet:** `reference_app/frontend/` holds only a `.gitkeep`; no `eval/` logic, no
-Playwright project, no `BRD.md`. Active unit: **3 (`p0-shop-frontend`)** — dep `p0-shop-backend` is
-`done` (met). Remaining units 4–6 build the BRD/release convention, the Playwright smoke, and the
+`http://127.0.0.1:8000` (commit `0ea16c8`). It implements HTTP Basic Auth (`testuser`/`testpass`), a
+**fixed 5-product seed catalog**, a per-user cart with cumulative add-to-cart, checkout→order, order
+retrieval, correct order-total, and an auto-served `/openapi.json` (routes `/products`, `/cart`,
+`/cart/items`, `/checkout`, `/orders/{id}`). The backend API contract is fully specified in
+`.harness/tasks/p0-shop-backend.md`; the launch entrypoints + seed are documented in
+`reference_app/backend/README.md`. **Unit 3 (`p0-shop-frontend`) is `done`** — a **React + Vite**
+single-page UI lives at `reference_app/frontend/` with five views (login, product list, cart,
+checkout, order-confirmation) that drive the backend over Basic Auth; verified at the
+component/integration level (Vitest with backend stubbed) plus a passing production build (commit
+`ba4d349`, branch `harness/p0-shop-frontend`). The UI contract + scripts are documented in
+`reference_app/frontend/README.md`. **Still missing:** no `BRD.md`, no `reference_app/README.md` /
+release convention, no Playwright project, no `eval/` logic. Active unit: **4 (`p0-brd-release`)** —
+dep `p0-shop-backend` is `done` (met). Remaining units 5–6 build the Playwright smoke and the
 `eval/` harness on top of it.
 
 **Environment note (informs, does not override META_PLAN/DESIGN):** the dev machine has `uv` and GNU
 `make` available; Node + `npx` are available for the frontend and later Playwright units. The Phase 0
-frontend stack is **React + Vite** (per `DESIGN.md §12` and B2 below). Component/integration testing
-for the frontend uses the Vite-native test tooling with the browser DOM emulated and backend calls
-stubbed; the full browser E2E smoke against a live app is a **separate later unit (5)**.
+frontend stack is **React + Vite** (per `DESIGN.md §12` and B2 below). The BRD + release convention
+(B3, this unit) is **documentation + a documented convention + a version marker only** — building the
+content-hashing / diff *tooling* is explicitly Phase 4 (`META_PLAN.md` Phase 4) and is out of Phase 0
+scope. The full browser E2E smoke against a live app is a **separate later unit (5)**.
 
 **Locked ordered units** (source of truth: `.harness/backlog.md`; scope: B1–B5 below):
 
@@ -50,8 +56,8 @@ stubbed; the full browser E2E smoke against a live app is a **separate later uni
 | 0 | `p0-design-note` | — | done |
 | 1 | `p0-scaffold` | — | done |
 | 2 | `p0-shop-backend` | `p0-scaffold` | done |
-| 3 | `p0-shop-frontend` | `p0-shop-backend` | **active** |
-| 4 | `p0-brd-release` | `p0-shop-backend` | todo |
+| 3 | `p0-shop-frontend` | `p0-shop-backend` | done |
+| 4 | `p0-brd-release` | `p0-shop-backend` | **active** |
 | 5 | `p0-playwright-smoke` | `p0-shop-frontend` | todo |
 | 6 | `p0-eval-harness` | `p0-playwright-smoke`, `p0-shop-backend` | todo |
 
@@ -78,16 +84,21 @@ runner/  eval/  control_plane/{api,orchestration,stores,frontend}/  sandbox/
   **This is unit 2 (`p0-shop-backend`) — DONE.**
 - **Frontend (`reference_app/frontend/`, React + Vite):** login, product list, cart, checkout,
   order-confirmation — talks to the backend (Basic Auth; routes/shapes per
-  `.harness/tasks/p0-shop-backend.md`). **This is unit 3 (`p0-shop-frontend`) — ACTIVE.** Its
-  acceptance is verified at the **component/integration level** (Vite test tooling with backend
+  `.harness/tasks/p0-shop-backend.md`). **This is unit 3 (`p0-shop-frontend`) — DONE.** Its
+  acceptance was verified at the **component/integration level** (Vite test tooling with backend
   calls stubbed) plus a **production build succeeding** — NOT via Playwright or a live backend
   (those belong to unit 5).
 - **Run:** `make dev` starts API + UI with seeded SQLite.
 
-### B3. BRD + release convention
-- `reference_app/BRD.md` — **freeform** description of intended shop behavior.
-- Release convention: a `version` marker + tagging so a "release" bundles code + BRD and yields a
-  diff (used by Phase 1 Case 1 / Phase 4 change-detection). Document in `reference_app/README.md`.
+### B3. BRD + release convention — **ACTIVE (unit 4, `p0-brd-release`)**
+- `reference_app/BRD.md` — **freeform** description of intended shop behavior (the human-readable
+  intended behavior that Phase 1 Case 1 / Phase 4 change-detection diff against). Must cover the
+  shop's key flows in prose: auth, products, cart, checkout, orders, and order-total.
+- Release convention: a **version marker** + a **git tag scheme** so a "release" bundles code + BRD
+  and yields a diff (consumed by Phase 1 Case 1 / Phase 4 change-detection). **Documented in
+  `reference_app/README.md`** (create it).
+- **Docs + a documented convention + a version marker only** — building the diff/hashing tooling
+  itself is Phase 4, out of scope here.
 
 ### B4. `eval/` injected-bug harness — the reliability gate
 - **Bug injection:** buggy variants via env-flag/patch set. Ship ≥3 known bugs, e.g. (a) checkout
