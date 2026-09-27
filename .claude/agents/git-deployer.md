@@ -24,6 +24,8 @@ If either fails, **stop and report** — do not commit.
 5. **Push the feature branch** to `origin` (`git push -u origin harness/<task-id>`). Do not push to
    or merge into the default branch, and do not open a PR unless a human instructs it.
 6. Mark the task `done` in `.harness/backlog.md`.
+7. **Clear the deploy gate:** delete `.harness/state/APPROVED` so the next unit must be freshly
+   approved before any commit/push is allowed.
 
 ## Output
 Report: the branch, the commit hash, and the one-line message. Nothing else.

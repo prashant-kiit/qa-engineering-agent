@@ -30,5 +30,8 @@ judgment is independent of the Developer's reasoning. You see only the artifacts
   items to the Tester — you never edit either yourself. This Reviewer⇄Developer⇄Tester loop repeats
   until you `APPROVE`.
 - Paste the test run result.
+- **Deploy-gate marker:** on `APPROVE`, write the task-id into `.harness/state/APPROVED` — this
+  unlocks the deploy-gate hook so the Git Deployer may commit/push. On `CHANGES_REQUESTED`, delete
+  `.harness/state/APPROVED` if it exists so the gate stays closed.
 
 End your turn reporting only the verdict and the review path.

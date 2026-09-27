@@ -26,3 +26,14 @@ reasoning. It also makes cycles **resumable across sessions**.
 | reviewer | `reviews/<id>.md` | developer (if changes), git-deployer |
 
 `<id>` is a short slug, e.g. `p0-shop-backend`, `p0-eval-harness`.
+
+## Deploy gate (hard enforcement)
+A `PreToolUse` hook (`.claude/hooks/deploy-gate.sh`, wired in `.claude/settings.json`) **blocks
+`git commit`/`git push` unless `.harness/state/APPROVED` exists**. The Reviewer writes that marker
+(the task-id) on `APPROVE`; the Git Deployer deletes it after a successful push. This makes
+"no push before a passing review" deterministic, not just instructed.
+
+- `state/` is transient and **git-ignored** — never committed.
+- **Escape hatch:** intentional non-harness commits use `HARNESS_BYPASS=1 git commit …`.
+- The hook activates in a **new session** (or after opening `/hooks` once) — Claude Code loads
+  `.claude/settings.json` at session start.
