@@ -259,3 +259,7 @@ Built as a thin vertical slice first, then hardened into the full SaaS:
 - Exact GitHub Actions integration shape (workflow/app, how BRD + code diff are delivered per release, PR/checks wiring).
 - Target-app auth beyond **Basic Auth** (SSO/MFA test accounts) for later tiers.
 - Data residency / retention policy per tenant tier; memory episodic-decay thresholds.
+
+> **Explicitly post-v1 (not in first SaaS release):** (a) target-app auth beyond Basic Auth — SSO/MFA;
+> (b) data residency & retention policy per tenant tier.
+> All other §15 items are implemented in-phase; only their fine detail / eval-driven choice is deferred.

@@ -4,13 +4,34 @@
 > iteration, against the current app state + `META_PLAN.md`. `META_PLAN.md` is the fixed north star;
 > this is the living working-detail. `DESIGN.md` remains the architecture source of truth.
 
+## Conflicts / deviations for human review
+- **None.** Current repo (docs + harness only; no source yet) is consistent with `META_PLAN.md`
+  Phase 0 and `DESIGN.md`. Proceeding.
+
 ## Task 0 (do first): record post-v1 scope in `DESIGN.md §15`
 Add to `DESIGN.md §15`:
 > **Explicitly post-v1 (not in first SaaS release):** (a) target-app auth beyond Basic Auth —
 > SSO/MFA; (b) data residency & retention policy per tenant tier. All other §15 items are
 > implemented in-phase; only their fine detail / eval-driven choice is deferred.
 
-## Phase 0 — Testbed & scaffolding
+## Phase 0 — Testbed & scaffolding  — LOCKED for this iteration (2026-09-27)
+
+**Current app state:** repo contains docs (`DESIGN.md`, `META_PLAN.md`, this file, `CLAUDE.md`),
+harness config (`.harness/`, `.claude/`), `.gitignore`, `LICENSE`. **No application source, no
+`reference_app/`, no `eval/`, no Playwright project exist yet.** Phase 0 builds all of it from zero.
+
+**Locked ordered units** (source of truth: `.harness/backlog.md`; scope: B1–B5 below):
+
+| # | id | Depends on |
+|---|----|-----------|
+| 0 | `p0-design-note` | — |
+| 1 | `p0-scaffold` | — |
+| 2 | `p0-shop-backend` | `p0-scaffold` |
+| 3 | `p0-shop-frontend` | `p0-shop-backend` |
+| 4 | `p0-brd-release` | `p0-shop-backend` |
+| 5 | `p0-playwright-smoke` | `p0-shop-frontend` |
+| 6 | `p0-eval-harness` | `p0-playwright-smoke`, `p0-shop-backend` |
+
 **Goal:** a real shop app to test + a reliability measurement harness + repo scaffolding, all
 reproducible with one command.
 
