@@ -1,0 +1,10 @@
+ef570bd30f4e36019b883f43cefc6e7c063b06a0	DESIGN.md
+d149d4b806c186cbe4a56fef007924ca8a142eda	META_PLAN.md
+8589f9c801e5a9b71c48e7095f0a2f60a494ca8a	AGILE_PLAN.md
+993acbd5ffca09007d85c83e5ab14912a2637055	CLAUDE.md
+fa15dca3aab1c688dca07b8f9d2f591856f0b8bc	.harness/backlog.md
+1afc093c554af92c93fb00a3efa35c73ad71d475	.harness/README.md
+1854e6a3c1d0b902274710d8a62f378d63f8f4b0	.harness/reviews/p0-design-note.md
+fdf3ff5b29291d8544fafedc4d33e9d1819fa30d	.harness/tasks/p0-design-note.md
+7574d36f780e6e7d51fa7d0948e73cab312a746e	.harness/tasks/p0-design-note.tests.md
+2cc8184ad2bdd58890f52e15c65b496fcbeeee89	.harness/tasks/p0-scaffold.md
