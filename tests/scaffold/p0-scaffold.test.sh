@@ -213,26 +213,31 @@ fi
 # ---------------------------------------------------------------------------
 # Criterion 6: the four Makefile targets are wired correctly.
 #
-# UPDATED (unit 5, p0-playwright-smoke): that unit's spec MANDATES replacing the
-# `make test` PLACEHOLDER with the REAL Playwright smoke run. So `make test` is now
-# implemented — and must NOT be executed here: running it launches the backend +
-# frontend servers and a headless Chromium (heavy/slow), which is wrong for this
-# lightweight, reentrant structure suite. We therefore:
-#   C6a — the still-unimplemented placeholders (dev/eval/release) remain invocable,
-#         exit 0, and name the later unit that will implement them.
-#   C6b — `test` is defined (real, not a placeholder) and wired to the e2e Playwright
-#         smoke, verified WITHOUT executing it (dry-run `make -n test`, no servers/browser).
+# UPDATED (unit 5, p0-playwright-smoke): that unit's spec MANDATED replacing the
+# `make test` PLACEHOLDER with the REAL Playwright smoke run — so `test` is real and is
+# verified via a dry-run (C6b), never executed.
+# UPDATED (unit 6, p0-eval-harness): that unit's spec (criteria 14–16) MANDATES making
+# `make dev` and `make eval` REAL too — `make dev` launches the clean app (a foreground
+# Vite server that never returns, so executing it HANGS) and `make eval` runs the real
+# scorer (heavy; no placeholder text). Both must therefore be verified WITHOUT executing
+# them (dry-run `make -n`), exactly as `test` is. `release` is the only remaining Phase-0
+# placeholder, so it is the ONLY target still executed here.
+# We therefore:
+#   C6a — the still-unimplemented placeholder (`release`) remains invocable, exits 0, and
+#         names the later unit that will implement it.
+#   C6b — `test`, `dev`, `eval` are each defined (real, not placeholders) and wired to
+#         their real behavior, verified WITHOUT executing them (dry-run `make -n`, no
+#         servers / browser / scorer): `test` → the e2e Playwright smoke; `dev` → the clean
+#         backend/frontend launch; `eval` → the scorer.
 # ---------------------------------------------------------------------------
 # per-target regex naming the later unit that will implement the placeholder
 unit_hint() {
   case "$1" in
-    dev)      printf '%s' "p0-(shop-(backend|frontend)|playwright-smoke)|unit ?[2-5]" ;;
-    eval)     printf '%s' "p0-eval-harness|unit ?6" ;;
     release)  printf '%s' "p0-brd-release|unit ?4" ;;
   esac
 }
 c6a_fails=0
-for t in dev eval release; do
+for t in release; do
   out="$(cd "$REPO_ROOT" && make "$t" 2>&1)"; rc=$?
   if [[ $rc -ne 0 ]]; then
     c6a_fails=$((c6a_fails + 1)); printf '       make %s exited %d (expected 0)\n' "$t" "$rc"; continue
@@ -244,22 +249,50 @@ for t in dev eval release; do
   fi
 done
 if [[ "$c6a_fails" -eq 0 ]]; then
-  pass "C6a: make dev/eval/release exit 0 with unit-naming placeholder output"
+  pass "C6a: make release exits 0 with unit-naming placeholder output"
 else
   fail "C6a: $c6a_fails placeholder target(s) failed exit-0 + placeholder-message check"
 fi
 
-# `make test` is now the REAL Playwright smoke (unit 5). Do NOT run it here — assert
-# only that it is defined and wired to the e2e Playwright smoke via a dry-run.
+# `test` (unit 5), `dev` and `eval` (unit 6) are now REAL. Do NOT run them here —
+# executing `make dev` HANGS (foreground Vite server) and `make eval` runs the heavy
+# scorer. Assert each is defined and wired to its real behavior via a dry-run (`make -n`,
+# which prints the recipe without executing it).
+c6b_fails=0
+# test → the e2e Playwright smoke
 if target_defined test; then
   test_dry="$(cd "$REPO_ROOT" && make -n test 2>&1)"
-  if printf '%s' "$test_dry" | grep -qiE "(playwright|e2e)"; then
-    pass "C6b: make test is implemented + wired to the e2e Playwright smoke (not executed here)"
-  else
-    fail "C6b: make test defined but not wired to the e2e Playwright smoke; dry-run was: $test_dry"
+  if ! printf '%s' "$test_dry" | grep -qiE "(playwright|e2e)"; then
+    c6b_fails=$((c6b_fails + 1))
+    printf '       make test defined but not wired to the e2e Playwright smoke; dry-run was: %s\n' "$test_dry"
   fi
 else
-  fail "C6b: make test target is not defined"
+  c6b_fails=$((c6b_fails + 1)); printf '       make test target is not defined\n'
+fi
+# dev → the clean reference-app launch (backend uvicorn + Vite frontend on port 5173)
+if target_defined dev; then
+  dev_dry="$(cd "$REPO_ROOT" && make -n dev 2>&1)"
+  if ! printf '%s' "$dev_dry" | grep -qiE "(uvicorn|npm run dev|5173|reference_app)"; then
+    c6b_fails=$((c6b_fails + 1))
+    printf '       make dev defined but not wired to the clean app launch; dry-run was: %s\n' "$dev_dry"
+  fi
+else
+  c6b_fails=$((c6b_fails + 1)); printf '       make dev target is not defined\n'
+fi
+# eval → the scorer (eval/score.py)
+if target_defined eval; then
+  eval_dry="$(cd "$REPO_ROOT" && make -n eval 2>&1)"
+  if ! printf '%s' "$eval_dry" | grep -qiE "(score\.py|eval)"; then
+    c6b_fails=$((c6b_fails + 1))
+    printf '       make eval defined but not wired to the scorer; dry-run was: %s\n' "$eval_dry"
+  fi
+else
+  c6b_fails=$((c6b_fails + 1)); printf '       make eval target is not defined\n'
+fi
+if [[ "$c6b_fails" -eq 0 ]]; then
+  pass "C6b: make test/dev/eval are implemented + wired to real behavior (verified via make -n, not executed here)"
+else
+  fail "C6b: $c6b_fails real target(s) not defined or not wired to real behavior"
 fi
 
 # ---------------------------------------------------------------------------
