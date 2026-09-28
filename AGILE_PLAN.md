@@ -7,19 +7,48 @@
 
 ## Conflicts / deviations for human review
 
-- **HARD external prerequisite — model API key (blocks the Phase 1 exit gate only).** Phase 1's exit
-  gate requires actually **running** a headless coding agent (Claude Code) + Playwright MCP to
-  author tests. The environment has the `claude` CLI installed but **no model credentials**
-  (`ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` / `ANTHROPIC_AUTH_TOKEN` all unset). Per `/auto all`, this
-  is a sanctioned stop-for-external-prerequisite, not a design conflict. **Mitigation, baked into the
-  plan:** Phase 1 is decomposed so every **buildable-without-a-key** deliverable ships first as its
-  own TDD unit (connectors spec-loader + per-run target config; generic QA system prompt;
-  Planner/Generator sub-agent definitions; Playwright-MCP config; agent-run glue unit-tested with a
-  **mock** in place of the real agent). The **live agent-run demonstration** — the actual Phase 1
-  gate — is the single explicit final unit **`p1-agent-authoring-gate`**, which is **blocked until a
-  model API key is supplied**. Units 1–6 do not need a key and can be built and merged now; unit 7
-  (the gate) is spec-ready but parked on the key. **No silent divergence** — this is recorded here
-  for a human to unblock.
+- **DEVIATION (human-authorized 2026-09-28) — coding-agent CLI + model swap: OpenCode + OpenAI
+  `gpt-4o-mini`, not Claude Code + Claude.** The human has decided the in-sandbox coding agent for the
+  current build is **OpenCode** (the open-source terminal coding agent) driving the OpenAI model
+  **`gpt-4o-mini`** via a platform-owned **`OPENAI_API_KEY`**, in place of `DESIGN.md`'s documented
+  default (Claude Code, headless, `claude-sonnet-5`). **This is design-sanctioned, not a contradiction:**
+  `DESIGN.md §2` explicitly makes the CLI *and* model **per-app configurable** behind a **generic
+  sandbox contract**, and `META_PLAN.md` Phase 7 names the **"open-agent CLI swap (Copilot/open CLI via
+  the generic sandbox contract)"** as an intended capability — we are exercising that seam early. It is
+  **cleanly enabled by the unit-6 `AgentRunner` seam** (`runner/authoring.py`): the glue never hard-codes
+  a CLI; it drives an injected runner, so binding OpenCode is a runner implementation, not a rewrite.
+  - **Model is a config value, bumpable later** (e.g. `openai/gpt-4o`, `openai/gpt-4.1`) as reliability
+    requires — pinned as a module constant in the runner unit.
+  - **KNOWN RISK (flag, not a blocker):** `gpt-4o-mini` is a **weak agentic model** and may **strain
+    Phase 2's stricter reliability gates** (bug-catch / false-positive / flake / assertion-audit
+    thresholds). Tracked as a risk to revisit at Phase 2 start (bump the model or gate the tier), not a
+    reason to stop the Phase 1 build.
+  - **Claude Code + `claude-sonnet-5` remain the documented default;** OpenCode is the concrete binding
+    for this build and a proof of the multi-CLI seam. Unit-5's `.claude/agents/*` are **kept** (the
+    Claude-CLI path, retained for the Phase-7 multi-CLI story); the OpenCode unit **adds** OpenCode-format
+    agent definitions that reference the **same** portable generic QA prompt + reliability rules (the
+    `DESIGN.md §2` portable "QA agent-configuration package"). The portable core is shared; only the
+    CLI-specific wrapper differs.
+  - **Proposed `DESIGN.md` note — for human sign-off (I did NOT edit `DESIGN.md`).** Add to `§2` (and/or
+    `§12` tech-stack row for the in-sandbox orchestrator) a note reading:
+
+    > **CLI/model binding note (build, human-signed 2026-09-28).** The current build drives the
+    > in-sandbox authoring loop with **OpenCode** (open-source terminal coding agent) on **OpenAI
+    > `gpt-4o-mini`** via a platform-owned `OPENAI_API_KEY`, in place of the default Claude Code +
+    > `claude-sonnet-5`. This is an early exercise of the §2 generic sandbox contract / the Phase-7
+    > open-agent CLI-swap goal: the CLI and model stay per-app-configurable and the concrete CLI is bound
+    > only at the generic **`AgentRunner`** runner seam (`runner/authoring.py`). Claude Code +
+    > `claude-sonnet-5` remain the documented default. The model is a config value, bumpable (e.g.
+    > `gpt-4o` / `gpt-4.1`) as reliability requires; `gpt-4o-mini` is a weak agentic model and may not
+    > clear Phase 2's stricter reliability thresholds (tracked risk).
+
+- **SUPERSEDED — earlier "hard external prerequisite: Claude/Anthropic model key" blocker.** The Phase 1
+  exit gate previously stalled because no `ANTHROPIC_API_KEY`/Claude credential was present. The decision
+  above **retargets** the live gate to OpenCode + `OPENAI_API_KEY`. The Phase 1 tail is reshaped so a new
+  **key-free** unit (`p1-opencode-runner`) is fully buildable now (mock/dry-run of the OpenCode process,
+  no network/model call), and only the final live gate (`p1-agent-authoring-gate`) needs the supplied
+  `OPENAI_API_KEY`. Under `/auto all` this remains a sanctioned stop-for-external-prerequisite at the
+  live gate only — not a design conflict.
 
 - **Placement of the Playwright-MCP config (path note, not a behavior conflict).** `META_PLAN.md`
   Phase 1 lists "Playwright-MCP config" grouped under the `agent_config/` deliverable bullet, while
@@ -34,8 +63,8 @@
   tooling. The **agent-authored test artifacts remain TypeScript Playwright** (`DESIGN.md §12`),
   unchanged. No conflict.
 
-- Otherwise **none**: the current repo (Phase 0 fully done + merged to master; now on
-  `harness/build`) is consistent with `META_PLAN.md` and `DESIGN.md`.
+- Otherwise **none**: the current repo (Phase 0 fully done + merged to master; Phase 1 units 1–6 done +
+  pushed on `harness/build`) is consistent with `META_PLAN.md` and `DESIGN.md`.
 
 ---
 
@@ -58,132 +87,119 @@ Historical unit table (all `done`, merged): `p0-design-note`, `p0-scaffold`, `p0
 
 ---
 
-## Phase 1 — In-sandbox authoring loop (local first) — **LOCKED for this iteration (2026-09-28)**
+## Phase 1 — In-sandbox authoring loop (local first) — **LOCKED for this iteration (2026-09-28, re-locked for the OpenCode tail)**
 
-**Goal (from `META_PLAN.md`):** Claude Code (headless) + Playwright MCP running **Planner →
-Generator** to emit **grounded** TypeScript Playwright + API tests against the reference app, with
-the BRD injected as the generic QA system prompt. Local-first (no E2B yet; E2B is Phase 3).
+**Goal (from `META_PLAN.md`):** a headless coding agent + Playwright MCP running **Planner →
+Generator** to emit **grounded** TypeScript Playwright + API tests against the reference app, with the
+BRD injected as the generic QA system prompt. Local-first (no E2B yet; E2B is Phase 3).
 
-**Current app state (what Phase 1 builds on — do NOT re-derive or modify):**
-- **Reference app (clean, pristine):** FastAPI+SQLite backend importable as
-  `reference_app.backend.app:app`, served at `http://127.0.0.1:8000`; Basic Auth
-  `testuser`/`testpass`; **OpenAPI 3.1.0** at `GET /openapi.json` with security scheme `HTTPBasic`,
-  paths `GET /products`, `GET /cart`, `POST /cart/items`, `POST /checkout`, `GET /orders/{order_id}`,
-  and schemas `Product / Cart / CartLine / Order / AddItem`. React+Vite frontend at
-  `http://127.0.0.1:5173` with a stable `data-testid` DOM contract. Freeform `reference_app/BRD.md`.
-- **Playwright TS project** at `reference_app/e2e/` (used by the smoke + eval baseline). `make dev` /
-  `make test` / `make eval` are real and green.
-- **`agent_config/` and `connectors/` are empty placeholder dirs** (only `.gitkeep`). `.claude/agents/`
-  currently holds only the **build-harness** roles (`tpm/tester/developer/reviewer/git-deployer`) —
-  the **product** Planner/Generator sub-agents do **not** yet exist and are new files this phase.
+> **Build-CLI note (this iteration):** the concrete coding agent for the live gate is **OpenCode +
+> OpenAI `gpt-4o-mini`** (human-authorized; see Conflicts / deviations). This changes only the concrete
+> CLI bound at the unit-6 `AgentRunner` seam — the Phase 1 goal, deliverables, and grounding/reliability
+> intent are unchanged. `META_PLAN.md`'s "Claude Code" wording is the *default*; the swap is the §2 /
+> Phase-7 configurable-CLI seam exercised early.
+
+**Current app state (what the Phase 1 tail builds on — do NOT re-derive or modify):**
+- **Units 1–6 are DONE + pushed on `harness/build`:** `p1-connectors-spec-loader` (`97f9b53`),
+  `p1-target-config` (`151af60`), `p1-mcp-config` (`8f0ac6a`), `p1-qa-system-prompt` (`22c9954`),
+  `p1-subagents-planner-generator` (`f7bee09`), `p1-agent-run-glue` (`c3694e0`).
+- **Unit-6 glue** lives at `runner/authoring.py` with public import path `runner.authoring`:
+  `run_authoring(config_source, *, agent_runner, output_dir=None, source_type="auto") -> RunResult`.
+  It **injects** an `AgentRunner` seam — a callable `agent_runner(AuthoringInvocation) -> AgentRunOutput`.
+  `AuthoringInvocation` carries `system_prompt` (final, BRD-injected), `api_surface`, `target_url`,
+  `planner_fields` (the seven), `mcp_config_path` (`connectors/mcp/playwright.mcp.json`),
+  `planner_agent` (`qa-planner`), `generator_agent` (`qa-generator`), `basic_auth_credential_ref`
+  (target-app auth **reference** only), `output_dir`. `AgentRunOutput` = `status` (`"ok"` on success),
+  `generated_tests` (relative-filename → content), optional `detail`. The glue writes
+  `generated_tests` to `output_dir` **only** on `status == "ok"`, surfaces (never swallows) runner
+  failures, and never resolves/logs the target-app secret. **This is the seam the OpenCode runner
+  implements.**
+- **Reference app (clean, pristine):** FastAPI+SQLite backend at `http://127.0.0.1:8000`; Basic Auth
+  `testuser`/`testpass`; **OpenAPI 3.1.0** at `GET /openapi.json`; React+Vite frontend at
+  `http://127.0.0.1:5173` with a stable `data-testid` contract; freeform `reference_app/BRD.md`.
+  `make dev` / `make test` / `make eval` are real and green.
+- **Playwright-MCP config** at `connectors/mcp/playwright.mcp.json` (`mcpServers.playwright` pinned to
+  `@playwright/mcp@0.0.41`, headless chromium). **Generic QA system prompt** at
+  `agent_config/qa_system_prompt.md` with a single `{{BRD}}` injection token. **Product sub-agents**
+  `.claude/agents/qa-planner.md` + `.claude/agents/qa-generator.md` (Claude-CLI format; kept).
 - **`eval/` harness** (Phase 0) is the objective measuring stick the Phase 1 gate reuses.
-
-**Deliverables (from `META_PLAN.md`), mapped to units:**
-- `connectors/` — OpenAPI/GraphQL **spec loader** (`p1-connectors-spec-loader`) + **per-run target
-  config** (`p1-target-config`) + **Playwright-MCP config** (`p1-mcp-config`, placed here per §13).
-- `agent_config/` — **generic QA system prompt v1** (`p1-qa-system-prompt`) + **`.claude/agents/`
-  Planner & Generator** sub-agent definitions (`p1-subagents-planner-generator`).
-- **Agent-run glue** (`p1-agent-run-glue`) — assembles a per-run authoring invocation (target config
-  + spec + BRD-injected prompt + MCP + sub-agents), unit-tested with a **mock** agent (no key).
-- **First agent-generated tests committed** + the **live gate demonstration**
-  (`p1-agent-authoring-gate`) — the only unit that needs the model API key.
 
 **Locked ordered units** (source of truth for scope: `.harness/backlog.md`; deps below):
 
 | # | id | Depends on | Needs model key? | Status |
 |---|----|-----------|:---:|--------|
-| 1 | `p1-connectors-spec-loader` | — (Phase 0 done) | no | **active (spec-ready)** |
-| 2 | `p1-target-config` | `p1-connectors-spec-loader` | no | todo |
-| 3 | `p1-mcp-config` | — (Phase 0 done) | no | todo |
-| 4 | `p1-qa-system-prompt` | — (Phase 0 done) | no | todo |
-| 5 | `p1-subagents-planner-generator` | `p1-qa-system-prompt`, `p1-mcp-config`, `p1-connectors-spec-loader` | no | todo |
-| 6 | `p1-agent-run-glue` | `p1-target-config`, `p1-subagents-planner-generator`, `p1-mcp-config`, `p1-qa-system-prompt` | no (mock) | todo |
-| 7 | `p1-agent-authoring-gate` | `p1-agent-run-glue` (+ all above) | **YES — hard prerequisite** | todo (blocked on key) |
+| 1 | `p1-connectors-spec-loader` | — (Phase 0 done) | no | **done** (`97f9b53`) |
+| 2 | `p1-target-config` | `p1-connectors-spec-loader` | no | **done** (`151af60`) |
+| 3 | `p1-mcp-config` | — (Phase 0 done) | no | **done** (`8f0ac6a`) |
+| 4 | `p1-qa-system-prompt` | — (Phase 0 done) | no | **done** (`22c9954`) |
+| 5 | `p1-subagents-planner-generator` | `p1-qa-system-prompt`, `p1-mcp-config`, `p1-connectors-spec-loader` | no | **done** (`f7bee09`) |
+| 6 | `p1-agent-run-glue` | `p1-target-config`, `p1-subagents-planner-generator`, `p1-mcp-config`, `p1-qa-system-prompt` | no (mock) | **done** (`c3694e0`) |
+| 7 | `p1-opencode-runner` | `p1-agent-run-glue` (+ all above) | **no (mock/dry-run)** | **active (spec-ready)** |
+| 8 | `p1-agent-authoring-gate` | `p1-opencode-runner` | **YES — `OPENAI_API_KEY`** | todo (blocked on key) |
 
-Active unit: **1 (`p1-connectors-spec-loader`)** — deps met (Phase 0 done). Full contract in
-`.harness/tasks/p1-connectors-spec-loader.md`.
+Active unit: **7 (`p1-opencode-runner`)** — deps met (unit 6 done). Full contract in
+`.harness/tasks/p1-opencode-runner.md`.
 
-### D1. `connectors/` — API spec loader — **ACTIVE (unit 1, `p1-connectors-spec-loader`)**
-A Python (`uv`) module under `connectors/` that loads an **OpenAPI** document from a URL, a file, or
-an in-memory object, and produces a **normalized "API surface"** (title/version; per-operation
-method, path, parameters, request/response schemas with intra-document `$ref` resolved, and declared
-security) that a downstream Generator uses to **ground API assertions in the schema** (`DESIGN.md
-§5.1`). Deterministic, JSON-serializable output. GraphQL is accommodated at the interface level
-(source-agnostic normalized model) but its adapter is deferred until a GraphQL target exists.
-Testable purely with fixtures — no model key. Full contract in
-`.harness/tasks/p1-connectors-spec-loader.md`.
+### D1–D6 — **DONE** (units 1–6; see the "Current app state" block above and each unit's task spec)
+`connectors/` API spec loader (D1), per-run target config (D2), Playwright-MCP config (D3);
+`agent_config/` generic QA system prompt (D4) + `.claude/agents/` Planner & Generator (D5); the
+agent-run glue with the injectable `AgentRunner` seam (D6). All merged/pushed on `harness/build`.
 
-### D2. `connectors/` — per-run target config — unit 2 (`p1-target-config`)
-A schema + loader for the **per-run target configuration** that a run needs: target UI URL, API spec
-source (feeds D1), BRD source path, Basic-Auth credential **reference** (never inline secrets — a
-vault key / env-var name only, per `DESIGN.md §11.4`), and the **seven structured fields** that drive
-the Planner (`DESIGN.md §6`: target scope, intent, expected behavior/acceptance, priority/risk, test
-data/preconditions, out-of-scope/constraints, depth). Ships a concrete **reference-app** target
-config as the canonical example. Acceptance = schema validation + example loads + secret-safety
-(no raw password in the config). No model key.
+### D7. OpenCode runner adapter (key-free, mock/dry-run tested) — **ACTIVE (unit 7, `p1-opencode-runner`)**
+The concrete **`AgentRunner` adapter** that binds **OpenCode** (headless) + OpenAI **`gpt-4o-mini`** to
+the unit-6 seam. It **implements** the injectable runner contract — a callable
+`(AuthoringInvocation) -> AgentRunOutput` — by: (a) reading the model credential from a **reference**
+(`OPENAI_API_KEY` env-var name, platform-owned per `DESIGN.md §11.5`, never inlined/logged); (b) wiring
+the Playwright-MCP config into OpenCode's own config format; (c) translating the Planner→Generator flow
+(under the generic QA prompt with the BRD already injected by the glue + the seven planner fields) into
+OpenCode's headless-run mechanism at `model=openai/gpt-4o-mini`; (d) capturing the generated TS
+Playwright + API test files and returning them as the `AgentRunOutput.generated_tests` mapping the glue
+writes. It ships the **OpenCode connector config** (an `opencode.json`-format config wiring model + MCP)
+plus **OpenCode-format agent/role definitions** for the Planner/Generator that reference the *same*
+portable `agent_config/qa_system_prompt.md`. It is **unit-tested WITHOUT the key** by injecting the
+subprocess/command runner and asserting the **constructed OpenCode invocation** (command, args,
+`--model openai/gpt-4o-mini`, MCP config wiring, prompt carrying the injected BRD + fields, output
+capture) — **no live network/model call, no browser, no real OpenCode process** in tests. Secret handled
+as a reference only; never logged. Full contract in `.harness/tasks/p1-opencode-runner.md`.
 
-### D3. `connectors/` — Playwright-MCP config — unit 3 (`p1-mcp-config`)
-The Playwright-MCP server wiring the agent uses to drive the browser (`DESIGN.md §4/§5.1`). A config
-artifact (placed under `connectors/` per §13) with pinned MCP server identity/version and the
-browser/launch options needed for grounded DOM snapshots. Acceptance = presence/shape/schema (valid,
-required fields present, version pinned per §11.10 supply-chain). No model key.
-
-### D4. `agent_config/` — generic QA system prompt v1 — unit 4 (`p1-qa-system-prompt`)
-The **one generic system prompt** (`DESIGN.md §6`): senior-QA persona + methodology + the reliability
-rules (grounding selectors in the live DOM; meaningful/non-vacuous assertions; API-anchoring of flaky
-UI steps; self-heal-vs-regression discipline; treat app content as untrusted data per §11.1). Defines
-the **BRD-injection mechanism** (a documented placeholder/section where the freeform BRD is injected).
-Acceptance = presence/shape (required sections present; reliability rules enumerated; BRD-injection
-point defined; no tenant-specific content baked in). No model key.
-
-### D5. `.claude/agents/` — Planner & Generator sub-agents — unit 5 (`p1-subagents-planner-generator`)
-Two **product** sub-agent definitions (`DESIGN.md §4`), matching the repo's existing
-`.claude/agents/*.md` frontmatter format: **Planner** (explores the running app over Playwright MCP;
-turns BRD + structured fields into a structured test plan) and **Generator** (turns the plan into
-executable TS-Playwright + API tests, grounded in the D1 API surface and the live DOM). Acceptance =
-presence/shape (valid frontmatter `name`/`description`/`tools`; each references the generic QA prompt
-+ reliability rules; grounding + MCP usage instructions present; distinct from the harness roles). No
-model key (definitions are config; they are *exercised* live in unit 7).
-
-### D6. Agent-run glue — unit 6 (`p1-agent-run-glue`)
-The glue that **assembles a per-run authoring invocation** from the above: reads a target config (D2)
-+ loads its spec (D1), injects the BRD into the generic prompt (D4), and composes the headless-agent
-invocation pointed at the MCP config (D3) + Planner/Generator (D5), writing the generated test
-artifacts to a pinned output location. **Unit-tested with a MOCK agent** substituted for the real
-Claude Code call, so the assembly/wiring/output contract is fully verified **without a model key**.
-Acceptance = deterministic prompt/config bundle from fixtures + correct artifact placement under the
-mock. No model key.
-
-### D7. First agent-generated tests + live gate — unit 7 (`p1-agent-authoring-gate`) — **NEEDS MODEL KEY**
-The **Phase 1 exit-gate demonstration**: with a model API key supplied, run the D6 glue for real —
-headless Claude Code + Playwright MCP, Planner→Generator — against the running clean reference app +
-BRD, produce **runnable, DOM/schema-grounded** TS Playwright + API tests, **commit** them, verify
-they **pass on the clean app**, and run them through the Phase 0 `eval/` scorer to show an
-injected-bug **catch rate better than a naive baseline** (naive floor defined at gate spec time —
-e.g. a page-load-only / no-meaningful-assertion suite catching ~0 bugs; the agent suite must beat it,
-target catching ≥1 and ideally all 3). **Blocked on the model API key** (see Conflicts). No source
-outside a `/tdd` cycle.
+### D8. Live gate + first agent-generated tests committed — unit 8 (`p1-agent-authoring-gate`) — **NEEDS `OPENAI_API_KEY`**
+The **Phase 1 exit-gate demonstration**: with `OPENAI_API_KEY` supplied, drive the unit-6 glue for real
+using the **unit-7 OpenCode runner** (headless OpenCode + Playwright MCP, Planner→Generator, model
+`gpt-4o-mini`) against the running **clean** reference app + `reference_app/BRD.md`, produce
+**runnable, DOM/schema-grounded** TS Playwright + API tests, **commit** them, verify they **pass on the
+clean app**, and run them through the Phase 0 `eval/` scorer to show an injected-bug **catch rate better
+than a naive baseline** (naive floor pinned in this unit's spec — e.g. a page-load-only / no-meaningful-
+assertion suite catching ~0 bugs; the agent suite must beat it, target ≥1 and ideally all 3).
+**Blocked on `OPENAI_API_KEY`** (see Conflicts). No source outside a `/tdd` cycle.
 
 ### Phase 1 acceptance (exit gate — from `META_PLAN.md`)
-- From `BRD.md` + the running reference app, the agent (Claude Code + Playwright MCP,
-  Planner→Generator) produces **runnable** TS Playwright + API tests that are **DOM/schema-grounded**
-  and **pass on the clean app**. *(Unit 7 — needs key.)*
-- The `eval/` harness shows the agent-generated suite's injected-bug **catch rate is better than a
-  naive baseline**. *(Unit 7 — needs key; measured via `eval/score.py`.)*
-- Units 1–6 (all key-free) merged and green: `connectors/` spec loader + target config + MCP config,
-  generic QA system prompt, Planner/Generator sub-agent definitions, and mock-verified run glue all
-  present, shape/schema-checked, and consistent with `DESIGN.md §4/§5/§6/§11/§13`.
+- From `BRD.md` + the running reference app, the agent (**OpenCode + Playwright MCP, Planner→Generator,
+  `gpt-4o-mini`** — the configured CLI/model for this build; Claude Code remains the documented default)
+  produces **runnable** TS Playwright + API tests that are **DOM/schema-grounded** and **pass on the
+  clean app**. *(Unit 8 — needs `OPENAI_API_KEY`.)*
+- The `eval/` harness shows the agent-generated suite's injected-bug **catch rate is better than a naive
+  baseline**. *(Unit 8 — needs `OPENAI_API_KEY`; measured via `eval/score.py`.)*
+- Units 1–7 (all key-free) merged and green: `connectors/` spec loader + target config + MCP config,
+  generic QA system prompt, Planner/Generator sub-agent definitions, mock-verified run glue, and the
+  **mock/dry-run-verified OpenCode runner adapter** all present, tested, and consistent with `DESIGN.md
+  §2/§4/§5.1/§6/§11/§13`.
 
 ## Verification
-- **Units 1–6 (no key):** `uv run pytest connectors/tests -q` (and any per-unit test dir) green;
-  config/prompt/sub-agent units pass presence/shape/schema checks; the glue unit passes with the mock
-  agent and writes artifacts to the pinned path.
-- **Unit 7 (with key):** supply the model key; run the glue live; inspect the committed
-  agent-generated tests, confirm they run green on clean via the e2e toolchain, and run `eval/score.py`
-  to confirm the catch rate beats the naive floor.
+- **Units 1–7 (no key):** `uv run pytest connectors/tests -q`, `uv run pytest agent_config/tests -q`,
+  `uv run pytest runner/tests -q` all green; config/prompt/sub-agent units pass presence/shape/schema
+  checks; the glue unit passes with the mock runner; the **OpenCode runner passes with an injected mock
+  command-runner** (asserts the constructed invocation + output capture) — no network, no model, no
+  browser, no real OpenCode process.
+- **Unit 8 (with key):** supply `OPENAI_API_KEY`; run the glue live via the OpenCode runner; inspect the
+  committed agent-generated tests, confirm they run green on clean via the e2e toolchain, and run
+  `eval/score.py` to confirm the catch rate beats the naive floor.
 - **Later phases:** gated by the `eval/` metrics (see `META_PLAN.md` gates); Phase 3+ additionally by
-  a real E2B run.
+  a real E2B run. **Phase 2 note:** re-evaluate `gpt-4o-mini` against the stricter reliability gates and
+  bump the model constant if needed (see Conflicts risk flag).
 
 ## Agile revise loop
 After each phase, re-plan the next phase to this level of detail against the **current app state +
-`META_PLAN.md`**. Update `DESIGN.md` if a phase forces an architecture change.
+`META_PLAN.md`**. Update `DESIGN.md` if a phase forces an architecture change (the OpenCode/model note
+above is proposed for human sign-off into `DESIGN.md §2/§12`).
+</content>
+</invoke>
