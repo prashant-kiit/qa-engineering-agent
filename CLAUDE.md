@@ -39,8 +39,11 @@ gates that make the build trustworthy and aligned to `DESIGN.md`/`META_PLAN.md`.
 /auto [phase or scope]
 ```
 Runs the full cycle for **every** backlog unit (auto-approving the gates) until the active phase's
-exit gate passes — one command instead of one `/tdd` per unit. Stops only on a blocker, a
-design conflict, or a capped loop. The deploy-gate hook still enforces review-before-push.
+exit gate passes — one command instead of one `/tdd` per unit. `**/auto all**` chains **all phases
+0→7** on the `harness/build` branch to build the whole product, stopping only for hard external
+prerequisites (E2B key, in-sandbox model credits, GitHub Actions) or a session/context limit —
+re-run it to resume. Stops otherwise only on a blocker, design conflict, or capped loop. The
+deploy-gate hook still enforces review-before-push; a human merges `harness/build → master` at the end.
 
 ### Unbiasedness rules (enforced by the orchestrator)
 - Never pass an agent the previous agent's chat/reasoning — pass only the **artifact files**.

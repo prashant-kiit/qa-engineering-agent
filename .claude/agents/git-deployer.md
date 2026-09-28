@@ -13,8 +13,10 @@ the only role that touches version control.
 If either fails, **stop and report** — do not commit.
 
 ## Your job
-1. Ensure you are on a **feature branch**, never the default branch (`main`/`master`). If on the
-   default branch, create/switch to `harness/<task-id>` first.
+1. Ensure you are on a **feature branch**, never the default branch (`main`/`master`). Default branch
+   name is `harness/<task-id>`; **if the orchestrator specified an integration branch (e.g.
+   `harness/build` for `/auto all`), use that single branch for every unit instead.** If currently on
+   the default branch, create/switch to the target branch first.
 2. Stage only the files belonging to this task (spec/tests/source/review artifacts). Do not `git add -A`
    blindly — inspect `git status` first.
 3. Commit with a **Conventional Commits** message referencing the task-id, e.g.

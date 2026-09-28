@@ -22,7 +22,13 @@ case "$cmd" in
 esac
 
 # Explicit human escape hatch for deliberate manual commits.
-if [ "${HARNESS_BYPASS:-}" = "1" ]; then
+# NOTE: the hook runs in Claude Code's environment, not the Bash command's shell,
+# so an inline `HARNESS_BYPASS=1 git ...` prefix is detected in the command TEXT.
+# The env var is also honored when exported into the hook's own environment.
+case "$cmd" in
+  *"HARNESS_BYPASS=1"*|*"HARNESS_BYPASS=true"*) exit 0 ;;
+esac
+if [ "${HARNESS_BYPASS:-}" = "1" ] || [ "${HARNESS_BYPASS:-}" = "true" ]; then
   exit 0
 fi
 
