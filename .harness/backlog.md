@@ -1,26 +1,39 @@
-# Backlog — Phase 0 (Testbed & scaffolding)
+# Backlog — Phase 1 (In-sandbox authoring loop, local first)
 
 Ordered units of work for the TDD harness. The **TPM** picks the top unit whose deps are `done`,
 writes its spec to `.harness/tasks/<id>.md`, and the `/tdd` cycle proceeds.
 
 **Status lifecycle:** `todo` → `spec-ready` (TPM wrote spec) → `in-progress` → `done`.
-Source of truth for scope: `AGILE_PLAN.md` (Phase 0, B1–B5) and `DESIGN.md`.
+Source of truth for scope: `AGILE_PLAN.md` (Phase 1, D1–D7) and `DESIGN.md`.
 
-| # | id | Unit | Depends on | Status |
-|---|----|------|-----------|--------|
-| 0 | `p0-design-note` | Doc-only: add the post-v1 note to `DESIGN.md §15` (SSO/MFA auth; data residency/retention). No test cycle — acceptance = text present. | — | done |
-| 1 | `p0-scaffold` | Repo dir tree per `DESIGN.md §13` + root tooling: Python env (uv/poetry), Node + Playwright, `Makefile`/`justfile` (`dev`/`test`/`eval`/`release`), extend `.gitignore` (`.venv/`, `node_modules/`, `*.db`, Playwright artifacts). | — | done |
-| 2 | `p0-shop-backend` | `reference_app/backend/` FastAPI + SQLite shop API: Basic Auth (user/pass), products, cart, add-to-cart, checkout→order, get-order, order-total calc; seed data (products + test account); auto `/openapi.json`. | `p0-scaffold` | done |
-| 3 | `p0-shop-frontend` | `reference_app/frontend/` React + Vite UI: login, product list, cart, checkout, order-confirmation; talks to the backend. | `p0-shop-backend` | done |
-| 4 | `p0-brd-release` | `reference_app/BRD.md` (freeform intended behavior) + release convention (version marker + tag + diff) documented in `reference_app/README.md`. | `p0-shop-backend` | done |
-| 5 | `p0-playwright-smoke` | Playwright TS project at `reference_app/e2e/` (`playwright.config.ts` + `tests/smoke.spec.ts` + dedicated `package.json`) + one smoke test (login → add to cart → checkout, asserts order confirmation + order-total): green on clean app, red on a `SMOKE_FAULT` faulty variant; wired into `make test`. | `p0-shop-frontend` | done |
-| 6 | `p0-eval-harness` | `eval/`: bug injection (≥3 known bugs — checkout-total miscalc, cart-qty bug, order-endpoint auth bypass) + `eval/score.py` (catch rate / false-positive / flake / assertion-meaningfulness) + a baseline hand-written suite proving the harness runs; also wires `make eval` + the clean-app `make dev` so the Phase 0 exit gate passes. | `p0-playwright-smoke`, `p0-shop-backend` | done |
+> **Phase 0 is DONE** (all units merged to master; exit gate passed). See `AGILE_PLAN.md` for the
+> condensed Phase 0 record. Phase 0 units (`p0-design-note`, `p0-scaffold`, `p0-shop-backend`,
+> `p0-shop-frontend`, `p0-brd-release`, `p0-playwright-smoke`, `p0-eval-harness`) are all `done`.
 
-### Phase 0 exit gate (from `AGILE_PLAN.md`)
-- `make dev` runs API + UI; `/openapi.json` served; seed data + test account; `BRD.md` exists.
-- `make test` runs the Playwright smoke test green on clean.
-- `make eval` injects ≥3 bugs and prints catch / false-positive / flake / assertion metrics.
+## Phase 1 units
 
-> Notes: `p0-design-note` and `p0-scaffold`/`p0-brd-release` are infra/doc units — the Tester encodes
-> their acceptance as presence/smoke checks (files exist, `make` targets succeed) rather than unit
-> tests. Code units (`p0-shop-backend` onward) follow full red→green TDD.
+| # | id | Unit | Depends on | Needs model key? | Status |
+|---|----|------|-----------|:---:|--------|
+| 1 | `p1-connectors-spec-loader` | `connectors/` OpenAPI **spec loader**: load a spec from URL/file/object → a normalized, deterministic, JSON-serializable **API surface** (per-operation method/path/params/request+response schemas with intra-doc `$ref` resolved + declared security) for grounding API assertions (`DESIGN.md §5.1/§13`). GraphQL accommodated at the interface level; adapter deferred. Tested purely with fixtures. | — (Phase 0 done) | no | **spec-ready** |
+| 2 | `p1-target-config` | `connectors/` **per-run target config**: schema + loader for target UI URL, API spec source (feeds unit 1), BRD source path, Basic-Auth credential **reference** (no inline secrets, §11.4), and the **seven structured Planner fields** (§6). Ships a concrete reference-app example config. Acceptance = schema validation + example loads + secret-safety. | `p1-connectors-spec-loader` | no | todo |
+| 3 | `p1-mcp-config` | `connectors/` **Playwright-MCP config**: the MCP server wiring the agent uses for grounded DOM snapshots (§4/§5.1), pinned server identity/version (§11.10). Placed under `connectors/` per §13. Acceptance = presence/shape/schema. | — (Phase 0 done) | no | todo |
+| 4 | `p1-qa-system-prompt` | `agent_config/` **generic QA system prompt v1** (§6): senior-QA persona + methodology + reliability rules (DOM grounding, meaningful assertions, API-anchoring, heal-vs-regression, untrusted-app-content §11.1) + a defined **BRD-injection mechanism**. No tenant-specific content. Acceptance = presence/shape (required sections + rules + injection point). | — (Phase 0 done) | no | todo |
+| 5 | `p1-subagents-planner-generator` | `.claude/agents/` **Planner** & **Generator** product sub-agents (§4), in the repo's existing sub-agent frontmatter format: Planner explores the running app over MCP → structured test plan from BRD + fields; Generator → grounded TS-Playwright + API tests. Acceptance = presence/shape (valid frontmatter; reference the QA prompt + reliability rules + MCP grounding; distinct from harness roles). | `p1-qa-system-prompt`, `p1-mcp-config`, `p1-connectors-spec-loader` | no | todo |
+| 6 | `p1-agent-run-glue` | **Agent-run glue**: assemble a per-run authoring invocation (read target config + load spec + inject BRD into prompt + point at MCP config + Planner/Generator; write generated tests to a pinned output path). **Unit-tested with a MOCK agent** in place of the real Claude Code call — full wiring/output contract verified without a key. | `p1-target-config`, `p1-subagents-planner-generator`, `p1-mcp-config`, `p1-qa-system-prompt` | no (mock) | todo |
+| 7 | `p1-agent-authoring-gate` | **Live gate + first agent-generated tests committed**: run the glue for real (headless Claude Code + Playwright MCP, Planner→Generator) against the running clean reference app + BRD → runnable DOM/schema-grounded TS + API tests that **pass on clean**; commit them; via `eval/score.py` show injected-bug **catch rate better than a naive baseline** (naive floor pinned in this unit's spec). **BLOCKED: requires a model API key.** | `p1-agent-run-glue` (+ all above) | **YES** | todo (blocked on key) |
+
+### Phase 1 exit gate (from `AGILE_PLAN.md` / `META_PLAN.md`)
+- From `BRD.md` + the running reference app, the agent (Claude Code + Playwright MCP,
+  Planner→Generator) produces **runnable, DOM/schema-grounded** TS Playwright + API tests that
+  **pass on the clean app**. *(Unit 7 — needs model key.)*
+- The `eval/` harness shows the agent-generated suite's injected-bug **catch rate is better than a
+  naive baseline**. *(Unit 7 — needs model key.)*
+- Units 1–6 (all key-free) merged and green.
+
+> **Hard external prerequisite (recorded in `AGILE_PLAN.md` → Conflicts):** the live gate (unit 7)
+> needs a model API key — none is set in this environment (`claude` CLI present, credentials absent).
+> Units 1–6 are buildable/mergeable now; unit 7 is spec-ready but parked until a key is supplied.
+>
+> Notes: units 3–5 are **config/prompt/sub-agent** artifacts — the Tester encodes their acceptance as
+> **presence/shape/schema** checks (like the Phase 0 infra units), not behavioral unit tests. Units 1,
+> 2, 6 are code/glue and follow full red→green TDD (unit 6 with a mock agent).

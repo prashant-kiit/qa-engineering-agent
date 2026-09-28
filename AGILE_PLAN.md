@@ -1,162 +1,188 @@
 # Agile Plan — Agentic QA Engineer (SaaS)
 
-> Phase 0 detailed and executable now. Phases 1–7 are re-planned to this level of detail each
-> iteration, against the current app state + `META_PLAN.md`. `META_PLAN.md` is the fixed north star;
-> this is the living working-detail. `DESIGN.md` remains the architecture source of truth.
+> The **active phase** is detailed and executable now. Completed phases are condensed and marked
+> DONE. Future phases are re-planned to this level of detail each iteration, against the current app
+> state + `META_PLAN.md`. `META_PLAN.md` is the fixed north star; this is the living working-detail.
+> `DESIGN.md` remains the architecture source of truth.
 
 ## Conflicts / deviations for human review
-- **None.** Current repo (docs + harness + units 0–5 done: doc note + scaffold/tooling +
-  FastAPI/SQLite shop backend + React/Vite shop frontend + BRD/release convention + Playwright TS
-  smoke) is consistent with `META_PLAN.md` Phase 0 and `DESIGN.md`. Proceeding to the **final** unit
-  6 (`p0-eval-harness`). The `eval/` harness lands in the `DESIGN.md §13` top-level `eval/` dir; the
-  reference app under `reference_app/` stays **pristine** (the bug catalog is a non-invasive
-  launcher-overlay, exactly like the unit-5 `SMOKE_FAULT`/`smoke_backend.py` pattern), so §13 and §9
-  are not contradicted.
-- **Scope fold (recorded, not a deviation):** the Phase 0 **exit gate** requires `make dev` to run
-  API + UI and `make eval` to inject ≥3 bugs and print metrics. `make dev` and `make eval` are still
-  root-`Makefile` placeholders. Unit 5's spec explicitly deferred real `make dev` wiring to "a small
-  follow-on at the exit gate." As the last Phase 0 unit before the exit gate, **unit 6 folds in the
-  `make dev` clean-app launcher wiring and the `make eval` wiring** so the exit gate passes on
-  landing. This is additive Makefile wiring reusing the already-pinned launch commands — it does not
-  contradict `META_PLAN.md`/`DESIGN.md`.
 
-## Task 0 (do first): record post-v1 scope in `DESIGN.md §15`
-Add to `DESIGN.md §15`:
-> **Explicitly post-v1 (not in first SaaS release):** (a) target-app auth beyond Basic Auth —
-> SSO/MFA; (b) data residency & retention policy per tenant tier. All other §15 items are
-> implemented in-phase; only their fine detail / eval-driven choice is deferred.
+- **HARD external prerequisite — model API key (blocks the Phase 1 exit gate only).** Phase 1's exit
+  gate requires actually **running** a headless coding agent (Claude Code) + Playwright MCP to
+  author tests. The environment has the `claude` CLI installed but **no model credentials**
+  (`ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` / `ANTHROPIC_AUTH_TOKEN` all unset). Per `/auto all`, this
+  is a sanctioned stop-for-external-prerequisite, not a design conflict. **Mitigation, baked into the
+  plan:** Phase 1 is decomposed so every **buildable-without-a-key** deliverable ships first as its
+  own TDD unit (connectors spec-loader + per-run target config; generic QA system prompt;
+  Planner/Generator sub-agent definitions; Playwright-MCP config; agent-run glue unit-tested with a
+  **mock** in place of the real agent). The **live agent-run demonstration** — the actual Phase 1
+  gate — is the single explicit final unit **`p1-agent-authoring-gate`**, which is **blocked until a
+  model API key is supplied**. Units 1–6 do not need a key and can be built and merged now; unit 7
+  (the gate) is spec-ready but parked on the key. **No silent divergence** — this is recorded here
+  for a human to unblock.
 
-**Status:** DONE (unit `p0-design-note`, commit `50bf25a`). Note present in `DESIGN.md §15`.
+- **Placement of the Playwright-MCP config (path note, not a behavior conflict).** `META_PLAN.md`
+  Phase 1 lists "Playwright-MCP config" grouped under the `agent_config/` deliverable bullet, while
+  `DESIGN.md §13` lists `playwright-mcp config` physically under **`connectors/`**. Resolution: the
+  physical config file is placed under **`connectors/` per `DESIGN.md §13`** (architecture source of
+  truth for paths); logically it remains part of the portable agent-configuration package. This is a
+  grouping-vs-directory distinction, not a contradiction.
 
-## Phase 0 — Testbed & scaffolding  — LOCKED for this iteration (2026-09-28, re-confirmed at unit 6)
+- **Language of `connectors/` tooling (clarification, not a deviation).** The `connectors/` spec
+  loader + per-run target config are **glue/tooling → Python (`uv`)**, consistent with `DESIGN.md
+  §12` ("Python backend/orchestration (glue, queue, sandbox manager)") and the Phase 0 `eval/`
+  tooling. The **agent-authored test artifacts remain TypeScript Playwright** (`DESIGN.md §12`),
+  unchanged. No conflict.
 
-**Current app state:** repo contains docs (`DESIGN.md`, `META_PLAN.md`, this file, `CLAUDE.md`),
-harness config (`.harness/`, `.claude/`), `.gitignore`, `LICENSE`, and Phase-0 units 0–5 **done**:
-- **Unit 0 (`p0-design-note`) — `done`** (commit `50bf25a`): the post-v1 note is present in
-  `DESIGN.md §15`.
-- **Unit 1 (`p0-scaffold`) — `done`** (commit `d958ac6`): the full `DESIGN.md §13` directory tree
-  with placeholders, a root `uv` project manifest (`pyproject.toml`), a root `Makefile` with
-  `dev`/`test`/`test-smoke-buggy`/`e2e-deps`/`eval`/`release` + `help` targets, and the extended
-  `.gitignore`.
-- **Unit 2 (`p0-shop-backend`) — `done`** (commit `0ea16c8`): a runnable **FastAPI + SQLite** shop
-  backend at `reference_app/backend/app.py`, importable as `reference_app.backend.app:app` and
-  servable on `http://127.0.0.1:8000`. HTTP Basic Auth (`testuser`/`testpass`), a fixed 5-product
-  seed catalog (stable ids/prices), a per-user cart with **cumulative** add-to-cart, checkout→order,
-  order retrieval, correct order-total (`total = Σ price × quantity`), auth required on every order
-  endpoint, and an auto-served `/openapi.json`. Contract in `.harness/tasks/p0-shop-backend.md`;
-  launch/seed docs in `reference_app/backend/README.md`.
-- **Unit 3 (`p0-shop-frontend`) — `done`** (commit `ba4d349`): a **React + Vite** SPA at
-  `reference_app/frontend/` with five views (login, product list, cart, checkout, order
-  confirmation) driving the backend over Basic Auth; stable `data-testid` DOM contract documented in
-  `reference_app/frontend/README.md`. Vite dev server default `http://127.0.0.1:5173`;
-  `VITE_API_BASE_URL` default `http://127.0.0.1:8000`.
-- **Unit 4 (`p0-brd-release`) — `done`** (commit `4a63635`): `reference_app/BRD.md` (freeform
-  intended behavior), `reference_app/README.md` (release convention: version marker + git tag
-  scheme), and `reference_app/VERSION`.
-- **Unit 5 (`p0-playwright-smoke`) — `done`** (commit `e07dccd`): a **TypeScript Playwright** project
-  at `reference_app/e2e/` (`playwright.config.ts` + `tests/smoke.spec.ts` + dedicated `package.json`
-  + `tsconfig.json` + `README.md`) with one UI smoke (login → add to cart → checkout, load-bearing
-  `order-total == cart-total` assertion). **Green on clean, red under the single `SMOKE_FAULT=1`
-  toggle.** Wired into `make test` (idempotent deps + Chromium install, clean-app run, exit-code
-  propagated) and `make test-smoke-buggy` (the red-on-buggy demo). The reference backend is launched
-  for the browser run via a **non-invasive launcher overlay** at `reference_app/e2e/smoke_backend.py`
-  that imports the clean backend unchanged, adds launch-time CORS, and overlays exactly one fault
-  under `SMOKE_FAULT=1` — the clean source stays pristine.
+- Otherwise **none**: the current repo (Phase 0 fully done + merged to master; now on
+  `harness/build`) is consistent with `META_PLAN.md` and `DESIGN.md`.
 
-**Still missing (the final unit):** the `eval/` injected-bug harness — the ≥3-bug catalog, the
-`eval/score.py` scorer, and the baseline suite the scorer runs — plus wiring `make eval` (and the
-clean-app `make dev` launcher) so the Phase 0 exit gate passes. Active unit: **6
-(`p0-eval-harness`)** — deps `p0-playwright-smoke` and `p0-shop-backend` are both `done` (**met**).
+---
 
-**Environment note (informs, does not override META_PLAN/DESIGN):** the dev machine has `uv` and GNU
-`make`; Node + `npm`/`npx` + a Playwright-installed Chromium are available (unit 5). Test artifacts
-are **TypeScript Playwright** (`DESIGN.md §12`) — the unit-6 baseline suite is authored in the same
-TS-Playwright toolchain (UI + Playwright API tests), reusing the `reference_app/e2e/` project.
-**Unit-6 pattern reuse:** the ≥3-bug catalog is implemented as a **non-invasive backend
-launcher-overlay** modelled on `reference_app/e2e/smoke_backend.py` (import the clean backend
-unchanged; add launch-time CORS; apply exactly one selected fault via an env toggle), living under
-`eval/` so the clean reference app is never modified. Making `make dev` a real clean-app launcher and
-wiring `make eval` are folded into unit 6 (they satisfy the exit gate); the launch commands are those
-already pinned in the unit-5 config.
+## Phase 0 — Testbed & scaffolding — **DONE (all units merged to master)**
 
-**Locked ordered units** (source of truth: `.harness/backlog.md`; scope: B1–B5 below):
+Delivered and gated: repo scaffold + `uv`/`Makefile` tooling (`p0-scaffold`); FastAPI+SQLite shop
+backend with Basic Auth / cart / checkout / orders / auto `/openapi.json` (`p0-shop-backend`);
+React+Vite shop frontend with a stable `data-testid` DOM contract (`p0-shop-frontend`); freeform
+`BRD.md` + release convention + `VERSION` (`p0-brd-release`); TypeScript-Playwright project + smoke
+(green-on-clean / red-under-`SMOKE_FAULT`) wired into `make test` (`p0-playwright-smoke`); and the
+`eval/` injected-bug harness — ≥3-bug non-invasive launcher overlay, `eval/score.py`
+(bug-catch / false-positive / flake / assertion-meaningfulness), a hand-written TS-Playwright
+baseline suite, and `make eval` + clean-app `make dev` wiring (`p0-eval-harness`). **Phase 0 exit
+gate PASSED:** `make dev` runs API+UI with `/openapi.json` + seed + `BRD.md`; `make test` green on
+clean; `make eval` injects ≥3 bugs and prints the four metrics. The clean reference app stayed
+pristine (all faults live in non-invasive `eval/` / `e2e/` launcher overlays).
 
-| # | id | Depends on | Status |
-|---|----|-----------|--------|
-| 0 | `p0-design-note` | — | done |
-| 1 | `p0-scaffold` | — | done |
-| 2 | `p0-shop-backend` | `p0-scaffold` | done |
-| 3 | `p0-shop-frontend` | `p0-shop-backend` | done |
-| 4 | `p0-brd-release` | `p0-shop-backend` | done |
-| 5 | `p0-playwright-smoke` | `p0-shop-frontend` | done |
-| 6 | `p0-eval-harness` | `p0-playwright-smoke`, `p0-shop-backend` | **active (spec-ready)** |
+Historical unit table (all `done`, merged): `p0-design-note`, `p0-scaffold`, `p0-shop-backend`,
+`p0-shop-frontend`, `p0-brd-release`, `p0-playwright-smoke`, `p0-eval-harness`.
 
-**Goal:** a real shop app to test + a reliability measurement harness + repo scaffolding, all
-reproducible with one command.
+---
 
-### B1. Repo scaffolding — **DONE (unit 1, `p0-scaffold`)**
-Create the `DESIGN.md §13` directory tree with placeholders; Phase 0 fills `reference_app/`,
-`eval/`, and root tooling. Representative paths:
+## Phase 1 — In-sandbox authoring loop (local first) — **LOCKED for this iteration (2026-09-28)**
 
-```
-reference_app/{backend,frontend}/   agent_config/  connectors/  reliability/
-runner/  eval/  control_plane/{api,orchestration,stores,frontend}/  sandbox/
-```
+**Goal (from `META_PLAN.md`):** Claude Code (headless) + Playwright MCP running **Planner →
+Generator** to emit **grounded** TypeScript Playwright + API tests against the reference app, with
+the BRD injected as the generic QA system prompt. Local-first (no E2B yet; E2B is Phase 3).
 
-- Root tooling: Python env (`uv`) for backend/eval; Node + Playwright for frontend/tests; a
-  `Makefile` with `dev`, `test`, `eval`, `release` targets.
-- Extend `.gitignore` for `.venv/`, `node_modules/`, `*.db`, Playwright artifacts.
+**Current app state (what Phase 1 builds on — do NOT re-derive or modify):**
+- **Reference app (clean, pristine):** FastAPI+SQLite backend importable as
+  `reference_app.backend.app:app`, served at `http://127.0.0.1:8000`; Basic Auth
+  `testuser`/`testpass`; **OpenAPI 3.1.0** at `GET /openapi.json` with security scheme `HTTPBasic`,
+  paths `GET /products`, `GET /cart`, `POST /cart/items`, `POST /checkout`, `GET /orders/{order_id}`,
+  and schemas `Product / Cart / CartLine / Order / AddItem`. React+Vite frontend at
+  `http://127.0.0.1:5173` with a stable `data-testid` DOM contract. Freeform `reference_app/BRD.md`.
+- **Playwright TS project** at `reference_app/e2e/` (used by the smoke + eval baseline). `make dev` /
+  `make test` / `make eval` are real and green.
+- **`agent_config/` and `connectors/` are empty placeholder dirs** (only `.gitkeep`). `.claude/agents/`
+  currently holds only the **build-harness** roles (`tpm/tester/developer/reviewer/git-deployer`) —
+  the **product** Planner/Generator sub-agents do **not** yet exist and are new files this phase.
+- **`eval/` harness** (Phase 0) is the objective measuring stick the Phase 1 gate reuses.
 
-### B2. Reference shop app — `reference_app/` (FastAPI + React + SQLite) — **DONE (units 2 + 3)**
-- **Backend (`reference_app/backend/`):** Basic Auth, products, cart, add-to-cart, checkout → order,
-  get order, order-total calc, auto `/openapi.json`, seed data. **Unit 2 (`p0-shop-backend`) —
-  DONE.**
-- **Frontend (`reference_app/frontend/`, React + Vite):** login, product list, cart, checkout,
-  order-confirmation. **Unit 3 (`p0-shop-frontend`) — DONE.**
-- **Run:** `make dev` starts API + UI with seeded SQLite. **Real `make dev` wiring is folded into
-  unit 6** (exit-gate follow-on); the launch commands are the ones pinned in the unit-5 config.
+**Deliverables (from `META_PLAN.md`), mapped to units:**
+- `connectors/` — OpenAPI/GraphQL **spec loader** (`p1-connectors-spec-loader`) + **per-run target
+  config** (`p1-target-config`) + **Playwright-MCP config** (`p1-mcp-config`, placed here per §13).
+- `agent_config/` — **generic QA system prompt v1** (`p1-qa-system-prompt`) + **`.claude/agents/`
+  Planner & Generator** sub-agent definitions (`p1-subagents-planner-generator`).
+- **Agent-run glue** (`p1-agent-run-glue`) — assembles a per-run authoring invocation (target config
+  + spec + BRD-injected prompt + MCP + sub-agents), unit-tested with a **mock** agent (no key).
+- **First agent-generated tests committed** + the **live gate demonstration**
+  (`p1-agent-authoring-gate`) — the only unit that needs the model API key.
 
-### B3. BRD + release convention — **DONE (unit 4, `p0-brd-release`)**
-- `reference_app/BRD.md` (freeform intended behavior), release convention (version marker + git tag
-  scheme) documented in `reference_app/README.md`, `reference_app/VERSION`. Building the
-  diff/hashing tooling is Phase 4, out of scope.
+**Locked ordered units** (source of truth for scope: `.harness/backlog.md`; deps below):
 
-### B4. `eval/` injected-bug harness — the reliability gate  — **ACTIVE (unit 6, `p0-eval-harness`)**
-- **Bug injection:** buggy variants of the reference app via an env-flag/variant-selector, built on
-  the non-invasive launcher-overlay pattern (like `reference_app/e2e/smoke_backend.py`) so the clean
-  app stays pristine. Ship **≥3 known bugs**: (a) checkout-total miscalculation, (b) cart quantity
-  not updating (add-to-cart quantity bug), (c) auth-check bypass on an order endpoint.
-- **Scorer (`eval/score.py`):** given the baseline suite run against **clean vs each buggy** variant
-  (with re-runs), compute and print **bug-catch rate**, **false-positive rate**, **flake** (re-run
-  consistency), and an **assertion-meaningfulness** audit, with pinned, testable metric definitions.
-- **Baseline:** a small **hand-written** TS-Playwright suite (UI + API), reusing the unit-5
-  `reference_app/e2e/` project, that the scorer runs — proving the harness is runnable before any
-  agent exists (the agent plugs in at Phase 1). Passes on clean; catches each injected bug.
-- **`make eval`:** wires it all — runs the scorer across the ≥3 bugs + clean and prints the metrics
-  table; the Phase-0 exit-gate command. **Also fold in `make dev`** (clean-app API+UI launcher) so
-  the full exit gate passes.
-- Full contract in `.harness/tasks/p0-eval-harness.md`.
+| # | id | Depends on | Needs model key? | Status |
+|---|----|-----------|:---:|--------|
+| 1 | `p1-connectors-spec-loader` | — (Phase 0 done) | no | **active (spec-ready)** |
+| 2 | `p1-target-config` | `p1-connectors-spec-loader` | no | todo |
+| 3 | `p1-mcp-config` | — (Phase 0 done) | no | todo |
+| 4 | `p1-qa-system-prompt` | — (Phase 0 done) | no | todo |
+| 5 | `p1-subagents-planner-generator` | `p1-qa-system-prompt`, `p1-mcp-config`, `p1-connectors-spec-loader` | no | todo |
+| 6 | `p1-agent-run-glue` | `p1-target-config`, `p1-subagents-planner-generator`, `p1-mcp-config`, `p1-qa-system-prompt` | no (mock) | todo |
+| 7 | `p1-agent-authoring-gate` | `p1-agent-run-glue` (+ all above) | **YES — hard prerequisite** | todo (blocked on key) |
 
-### B5. Playwright TS project — **DONE (unit 5, `p0-playwright-smoke`)**
-- A **TypeScript Playwright** project at `reference_app/e2e/` (`playwright.config.ts`,
-  `tests/smoke.spec.ts`, dedicated `package.json`). One UI smoke (login → add to cart → checkout,
-  meaningful `order-total == cart-total` assertion), **green on clean, red under `SMOKE_FAULT=1`**,
-  launched via `webServer` (backend via `smoke_backend:app` + Vite frontend). Wired into `make test`
-  (+ `make test-smoke-buggy`). Contract in `.harness/tasks/p0-playwright-smoke.md`.
+Active unit: **1 (`p1-connectors-spec-loader`)** — deps met (Phase 0 done). Full contract in
+`.harness/tasks/p1-connectors-spec-loader.md`.
 
-### Phase 0 acceptance (exit gate)
-- `make dev` runs API + UI; `/openapi.json` served; seed data + test account; `BRD.md` exists.
-  *(`/openapi.json` + seed + `BRD.md` present since units 2/4; the `make dev` launcher itself is
-  wired by unit 6.)*
-- `make test` runs the Playwright smoke test green on clean. *(Unit 5 — satisfied.)*
-- `make eval` injects ≥3 bugs and prints catch / false-positive / flake / assertion metrics.
-  *(Unit 6 — the final unit.)*
+### D1. `connectors/` — API spec loader — **ACTIVE (unit 1, `p1-connectors-spec-loader`)**
+A Python (`uv`) module under `connectors/` that loads an **OpenAPI** document from a URL, a file, or
+an in-memory object, and produces a **normalized "API surface"** (title/version; per-operation
+method, path, parameters, request/response schemas with intra-document `$ref` resolved, and declared
+security) that a downstream Generator uses to **ground API assertions in the schema** (`DESIGN.md
+§5.1`). Deterministic, JSON-serializable output. GraphQL is accommodated at the interface level
+(source-agnostic normalized model) but its adapter is deferred until a GraphQL target exists.
+Testable purely with fixtures — no model key. Full contract in
+`.harness/tasks/p1-connectors-spec-loader.md`.
+
+### D2. `connectors/` — per-run target config — unit 2 (`p1-target-config`)
+A schema + loader for the **per-run target configuration** that a run needs: target UI URL, API spec
+source (feeds D1), BRD source path, Basic-Auth credential **reference** (never inline secrets — a
+vault key / env-var name only, per `DESIGN.md §11.4`), and the **seven structured fields** that drive
+the Planner (`DESIGN.md §6`: target scope, intent, expected behavior/acceptance, priority/risk, test
+data/preconditions, out-of-scope/constraints, depth). Ships a concrete **reference-app** target
+config as the canonical example. Acceptance = schema validation + example loads + secret-safety
+(no raw password in the config). No model key.
+
+### D3. `connectors/` — Playwright-MCP config — unit 3 (`p1-mcp-config`)
+The Playwright-MCP server wiring the agent uses to drive the browser (`DESIGN.md §4/§5.1`). A config
+artifact (placed under `connectors/` per §13) with pinned MCP server identity/version and the
+browser/launch options needed for grounded DOM snapshots. Acceptance = presence/shape/schema (valid,
+required fields present, version pinned per §11.10 supply-chain). No model key.
+
+### D4. `agent_config/` — generic QA system prompt v1 — unit 4 (`p1-qa-system-prompt`)
+The **one generic system prompt** (`DESIGN.md §6`): senior-QA persona + methodology + the reliability
+rules (grounding selectors in the live DOM; meaningful/non-vacuous assertions; API-anchoring of flaky
+UI steps; self-heal-vs-regression discipline; treat app content as untrusted data per §11.1). Defines
+the **BRD-injection mechanism** (a documented placeholder/section where the freeform BRD is injected).
+Acceptance = presence/shape (required sections present; reliability rules enumerated; BRD-injection
+point defined; no tenant-specific content baked in). No model key.
+
+### D5. `.claude/agents/` — Planner & Generator sub-agents — unit 5 (`p1-subagents-planner-generator`)
+Two **product** sub-agent definitions (`DESIGN.md §4`), matching the repo's existing
+`.claude/agents/*.md` frontmatter format: **Planner** (explores the running app over Playwright MCP;
+turns BRD + structured fields into a structured test plan) and **Generator** (turns the plan into
+executable TS-Playwright + API tests, grounded in the D1 API surface and the live DOM). Acceptance =
+presence/shape (valid frontmatter `name`/`description`/`tools`; each references the generic QA prompt
++ reliability rules; grounding + MCP usage instructions present; distinct from the harness roles). No
+model key (definitions are config; they are *exercised* live in unit 7).
+
+### D6. Agent-run glue — unit 6 (`p1-agent-run-glue`)
+The glue that **assembles a per-run authoring invocation** from the above: reads a target config (D2)
++ loads its spec (D1), injects the BRD into the generic prompt (D4), and composes the headless-agent
+invocation pointed at the MCP config (D3) + Planner/Generator (D5), writing the generated test
+artifacts to a pinned output location. **Unit-tested with a MOCK agent** substituted for the real
+Claude Code call, so the assembly/wiring/output contract is fully verified **without a model key**.
+Acceptance = deterministic prompt/config bundle from fixtures + correct artifact placement under the
+mock. No model key.
+
+### D7. First agent-generated tests + live gate — unit 7 (`p1-agent-authoring-gate`) — **NEEDS MODEL KEY**
+The **Phase 1 exit-gate demonstration**: with a model API key supplied, run the D6 glue for real —
+headless Claude Code + Playwright MCP, Planner→Generator — against the running clean reference app +
+BRD, produce **runnable, DOM/schema-grounded** TS Playwright + API tests, **commit** them, verify
+they **pass on the clean app**, and run them through the Phase 0 `eval/` scorer to show an
+injected-bug **catch rate better than a naive baseline** (naive floor defined at gate spec time —
+e.g. a page-load-only / no-meaningful-assertion suite catching ~0 bugs; the agent suite must beat it,
+target catching ≥1 and ideally all 3). **Blocked on the model API key** (see Conflicts). No source
+outside a `/tdd` cycle.
+
+### Phase 1 acceptance (exit gate — from `META_PLAN.md`)
+- From `BRD.md` + the running reference app, the agent (Claude Code + Playwright MCP,
+  Planner→Generator) produces **runnable** TS Playwright + API tests that are **DOM/schema-grounded**
+  and **pass on the clean app**. *(Unit 7 — needs key.)*
+- The `eval/` harness shows the agent-generated suite's injected-bug **catch rate is better than a
+  naive baseline**. *(Unit 7 — needs key; measured via `eval/score.py`.)*
+- Units 1–6 (all key-free) merged and green: `connectors/` spec loader + target config + MCP config,
+  generic QA system prompt, Planner/Generator sub-agent definitions, and mock-verified run glue all
+  present, shape/schema-checked, and consistent with `DESIGN.md §4/§5/§6/§11/§13`.
 
 ## Verification
-- **Phase 0:** run `make dev`; curl key endpoints + load UI; run `make test` (green on clean, red on
-  a buggy variant); run `make eval` and inspect the metrics table.
-- **Later phases:** gated by the `eval/` metrics (see `META_PLAN.md` gates). Phase 3+ additionally
-  verified by a real E2B run — inspect the PR, checkpoints, secret-free logs, and egress denials.
+- **Units 1–6 (no key):** `uv run pytest connectors/tests -q` (and any per-unit test dir) green;
+  config/prompt/sub-agent units pass presence/shape/schema checks; the glue unit passes with the mock
+  agent and writes artifacts to the pinned path.
+- **Unit 7 (with key):** supply the model key; run the glue live; inspect the committed
+  agent-generated tests, confirm they run green on clean via the e2e toolchain, and run `eval/score.py`
+  to confirm the catch rate beats the naive floor.
+- **Later phases:** gated by the `eval/` metrics (see `META_PLAN.md` gates); Phase 3+ additionally by
+  a real E2B run.
 
 ## Agile revise loop
 After each phase, re-plan the next phase to this level of detail against the **current app state +
