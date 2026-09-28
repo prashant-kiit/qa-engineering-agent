@@ -215,6 +215,78 @@ to the clean reference app (`target_url` `http://127.0.0.1:5173`, `api_spec_sour
 `basic_auth_credential_ref` `REF_APP_BASIC_AUTH`, and all seven Planner fields populated with
 `depth` in the enum). It loads and validates cleanly and contains no credential value.
 
+---
+
+# connectors — Playwright-MCP config
+
+`connectors/mcp/playwright.mcp.json` is the **Playwright MCP server configuration** the
+authoring agent uses to drive a browser and obtain **grounded DOM snapshots** — the
+role/label/test-id locators that the reliability layer requires be read from the live DOM,
+never invented (`DESIGN.md §4/§5.1`). It is a **static config artifact only**: this unit does
+**not** launch the server, spawn a browser, run `npx`, or reach the network.
+
+## File path & shape
+
+- **Path (binding):** `connectors/mcp/playwright.mcp.json`
+- **Format:** the Claude Code MCP-server config form — a JSON object with a top-level
+  **`mcpServers`** map. The server key is exactly **`playwright`**, and its value is the
+  standard stdio launch definition (`command` + `args`).
+
+```jsonc
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@0.0.41",   // pinned package + EXACT version (§11.10)
+        "--headless",               // deterministic, snapshot-oriented runs
+        "--browser", "chromium"     // concrete engine — unambiguous DOM-snapshot channel
+      ]
+    }
+  }
+}
+```
+
+## Pinned server + exact version (`DESIGN.md §11.10`)
+
+- **Package:** the official Playwright MCP server, npm **`@playwright/mcp`**.
+- **Version:** pinned to an **exact** `@playwright/mcp@0.0.41` (`major.minor.patch`). This is
+  a supply-chain integrity requirement: the reference **never** uses a floating specifier
+  (`latest`, `@next`, `^`, `~`, `*`, `>=`, ranges, an `x` wildcard, or a bare unversioned
+  name). The specific number may be updated to the release the team has verified/mirrored,
+  but it must remain an exact pin.
+
+## Browser / DOM-snapshot options
+
+- **`--headless`** — the browser runs headless so runs are deterministic and oriented to DOM
+  snapshots rather than interactive display.
+- **`--browser chromium`** — a concrete browser engine, so the grounded-DOM-snapshot channel
+  is unambiguous.
+
+## How later units consume it
+
+- **Unit 5** (`p1-subagents-planner-generator`) and **unit 6** (`p1-agent-run-glue`) point
+  Claude Code at this file / the stable `playwright` server key to obtain the MCP browser
+  channel. The stable fields they rely on — the server key `playwright`, the `command`/`args`
+  launch, and this file path — are fixed here so a consumer can reference them without editing
+  the file.
+
+## Target-agnostic & secret-safe (`DESIGN.md §11.4`)
+
+- This file wires the Playwright MCP **server**, not any specific target. It bakes in **no**
+  target UI/API URL, port, or credential value — the per-run target URL and credential
+  *reference* live in the unit-2 per-run target config (`connectors.target_config`).
+
+## Runtime prerequisite (documentation only — not tested live)
+
+- Launching this server (unit 6/7, not here) requires **Node/`npx`** available in the run
+  environment so `npx @playwright/mcp@0.0.41` can start. This unit performs no launch/install;
+  Node availability is a documented runtime prerequisite for later units, validated live in
+  unit 7, not by this unit's static tests.
+
+---
+
 ## Tests
 
 ```
