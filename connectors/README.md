@@ -118,6 +118,103 @@ future GraphQL adapter (the operation shape is source-agnostic). The GraphQL
 adapter itself is **out of scope** for this unit: `source_type="graphql"`
 raises `UnsupportedSourceError` so the deferral is explicit rather than a crash.
 
+---
+
+# connectors — per-run target config
+
+`connectors.target_config` is the **per-run input contract** an authoring run reads: the
+target UI URL, the API-spec source (delegated to the spec loader above), the freeform BRD
+path, a Basic-Auth credential **reference** (an env-var / vault-key *name*, never the secret
+value — `DESIGN.md §11.4`), and the seven structured **Planner fields** (`DESIGN.md §6`). It
+validates required fields, is **secret-safe**, and delegates spec parsing to
+`connectors.spec_loader` (no duplication).
+
+## Public API (stable)
+
+```python
+from connectors.target_config import (
+    load_target_config,     # entry point
+    TargetConfig,           # validated config object (returned by the loader)
+    TargetConfigError,      # missing / malformed / invalid field
+    CredentialUnsetError,   # referenced env var unset at resolve time (NOT a
+                            # subclass of TargetConfigError)
+)
+
+cfg = load_target_config(source, source_type="auto")
+data     = cfg.to_dict()            # plain, deterministic, secret-free dict
+surface  = cfg.load_api_spec()      # -> connectors.spec_loader.ApiSurface (delegation)
+secret   = cfg.resolve_credential() # reads the referenced env var at call time
+```
+
+- **`load_target_config(source, source_type="auto") -> TargetConfig`** — loads and
+  validates a config from a **mapping** (already-parsed dict) or a **JSON file path**
+  string. `source_type="auto"` (default) detects which. Raises `TargetConfigError` on any
+  missing/empty/wrong-typed field or on an unreadable / non-JSON file; the message names
+  the offending field.
+- **`TargetConfig.to_dict() -> dict`** — renders to a plain, deterministic, **secret-free**
+  dict using the pinned key names and stable ordering (same input → identical output;
+  file == equivalent mapping).
+- **`TargetConfig.load_api_spec()`** — delegates the `api_spec_source` to
+  `connectors.spec_loader.load_spec(...)` and returns its `ApiSurface`. This unit performs
+  **no** independent spec parsing; the loader's `SpecLoadError` / `UnsupportedSourceError`
+  propagate **unchanged** (never rewrapped into `TargetConfigError`).
+- **`TargetConfig.resolve_credential() -> str`** — reads the env var named by
+  `basic_auth_credential_ref` **at call time**, returns its value **to the caller only**
+  (never stored back on the object, never logged), and raises `CredentialUnsetError` when
+  the variable is unset.
+- **`repr(cfg)` / `str(cfg)`** — secret-free; expose the credential **reference name** only.
+
+## Config schema (pinned key names)
+
+| Key | Type | Meaning |
+|---|---|---|
+| `target_url` | string | running target **UI** URL (must be `http(s)://…`) |
+| `api_spec_source` | string \| mapping | a `source` accepted by `connectors.spec_loader.load_spec` (stored as given, not parsed here) |
+| `brd_path` | string | filesystem path to the freeform BRD document |
+| `basic_auth_credential_ref` | string | the **name** of the env var / vault key holding the Basic-Auth credential — a **reference**, never the secret. No raw username/password field exists. |
+| `planner_fields` | mapping | the **seven** Planner fields below (exactly — no more, no fewer) |
+
+### The seven Planner fields (`DESIGN.md §6`)
+
+| Key | `DESIGN.md §6` field | Rule |
+|---|---|---|
+| `target_scope` | Target scope (feature/flow) | non-empty free text |
+| `intent` | Intent / goal | non-empty free text |
+| `expected_behavior` | Expected behavior / acceptance criteria | non-empty free text |
+| `priority_risk` | Priority / risk areas | non-empty free text |
+| `test_data_preconditions` | Test data / preconditions | non-empty free text |
+| `out_of_scope_constraints` | Out-of-scope / constraints | non-empty free text |
+| `depth` | Depth | enumerated: `smoke` \| `regression` \| `exhaustive` |
+
+Each of the seven is **required** and non-empty; `depth` must be one of the enumerated
+values (case-sensitive, no surrounding whitespace) or the loader raises `TargetConfigError`.
+
+## Secret-safety contract (`DESIGN.md §11.4`)
+
+- The object stores the credential **reference name** only — there is **no** field for a
+  username/password value; any inlined secret keys in the source are ignored (not retained).
+- A resolved secret is **never** stored on the object and **never** appears in `to_dict()`,
+  `repr()`, `str()`, or logs. Resolution happens **only** when `resolve_credential()` is
+  called, and the value is returned to the caller without being cached.
+- `resolve_credential()` raises `CredentialUnsetError` (distinct from `TargetConfigError`)
+  when the referenced env var is unset.
+
+## Error types
+
+| Error | Raised when |
+|---|---|
+| `TargetConfigError` | a required field is missing/empty/wrong-typed/malformed (message names the field), `depth` is out of set, or the config file is unreadable / not valid JSON. |
+| `CredentialUnsetError` | the env var named by `basic_auth_credential_ref` is unset at `resolve_credential()` time. **Not** a subclass of `TargetConfigError`. |
+| `SpecLoadError` / `UnsupportedSourceError` | propagated **unchanged** from the spec-loader hand-off (`load_api_spec()`). |
+
+## Example config
+
+`connectors/examples/reference_app.target.json` is the canonical, secret-free example wired
+to the clean reference app (`target_url` `http://127.0.0.1:5173`, `api_spec_source`
+`http://127.0.0.1:8000/openapi.json`, `brd_path` `reference_app/BRD.md`,
+`basic_auth_credential_ref` `REF_APP_BASIC_AUTH`, and all seven Planner fields populated with
+`depth` in the enum). It loads and validates cleanly and contains no credential value.
+
 ## Tests
 
 ```
