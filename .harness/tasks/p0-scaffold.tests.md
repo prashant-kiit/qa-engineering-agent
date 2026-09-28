@@ -28,7 +28,7 @@ this unit's *developer* work only — not to the TPM's earlier plan-lock edits.
 | 3 | `git ls-files` lists a tracked file inside each §13 dir | C3 — per-dir tracked-file count `>= 1` |
 | 4 | Root Python manifest exists and is parseable by `uv` | C4a `pyproject.toml` present; C4b `uv lock --check` (fallback `uv tree`) exits 0 |
 | 5 | Root `Makefile` defines `dev`/`test`/`eval`/`release` + a list/help target | C5a Makefile present; C5b targets resolve via `make -n` (no "no rule"); C5c help/list target (help/list/targets/default) resolves |
-| 6 | Makefile targets wired correctly | C6a — the still-unimplemented placeholders `dev`/`eval`/`release` are invocable, exit 0, and name their owning later unit (`eval`→unit 6/`p0-eval-harness`; `release`→unit 4/`p0-brd-release`); C6b — `test` is now the REAL Playwright smoke (unit 5, `p0-playwright-smoke`), so it is asserted DEFINED and wired to the e2e/Playwright smoke via a dry-run `make -n test` grep (`playwright|e2e`) and is **NOT executed** (running it would launch backend+frontend servers and headless Chromium). `test` was removed from the placeholder-execution loop. |
+| 6 | Makefile targets wired correctly | C6a — the ONLY still-unimplemented Phase-0 placeholder `release` is invocable, exits 0, and names its owning later unit (unit 4/`p0-brd-release`); C6b — `test` (unit 5), `dev` and `eval` (unit 6) are now REAL, so each is asserted DEFINED and wired to its real behavior via a dry-run `make -n` grep and is **NOT executed** (`test`→`playwright|e2e`; `dev`→`uvicorn|npm run dev|5173|reference_app`; `eval`→`score.py|eval`). `dev`/`eval` were removed from the placeholder-execution loop because executing `make dev` HANGS (foreground Vite server) and `make eval` runs the heavy scorer. |
 | 7 | Help/list target lists all four targets | C7 — help output contains `dev`, `test`, `eval`, `release` |
 | 8 | `.gitignore` ignores `.venv/`, `node_modules/`, `*.db`, Playwright artifacts | C8 — `git check-ignore -q` for `.venv/`, `node_modules/`, `*.db`, `test-results/`, `playwright-report/`, and a Playwright cache path |
 | 9 | No pre-existing `.gitignore` entry removed (additive) | C9 — every non-blank baseline line still present in current `.gitignore` |
@@ -221,3 +221,33 @@ PASS: C6b: make test is implemented + wired to the e2e Playwright smoke (not exe
 ```
 The reentrant Makefile coverage (targets defined C5b, help lists them C7) is unchanged; the
 retired C2/C10/C11 stay gated behind `SCAFFOLD_DIFF_GUARD=1`.
+
+## C6 update — `make dev` + `make eval` are now real (unit 6, `p0-eval-harness`)
+
+Unit 6's spec (`.harness/tasks/p0-eval-harness.md`, criteria 14–16) **mandates** replacing
+the `dev` and `eval` placeholders with real behavior: `make dev` launches the clean
+reference app (backend uvicorn + a **foreground Vite server that never returns**) and
+`make eval` runs the real scorer (`eval/score.py`, heavy; no placeholder text). The old
+C6a loop (`for t in dev eval release`) that EXECUTED `make <t>` and grepped for a
+"placeholder … arrives in unit …" message became false and harmful for both: executing
+`make dev` **HANGS** (the C6a loop hit the 2-min timeout) and `make eval` fails the
+placeholder-text assertion.
+
+**Fix (test-only, mirroring the unit-5 C6b treatment of `test`):**
+- **C6a** now executes ONLY the still-unimplemented placeholder `release` (asserts exit 0
+  + unit-naming text). `dev` and `eval` were removed from the executing loop (and from
+  `unit_hint`).
+- **C6b** now covers all three REAL targets via dry-run (`make -n`, no execution — no
+  servers, no browser, no scorer):
+  - `test` → grep `playwright|e2e`
+  - `dev`  → grep `uvicorn|npm run dev|5173|reference_app`
+  - `eval` → grep `score.py|eval`
+- All four targets remain asserted DEFINED (C5b + the C6b `target_defined` guards). The
+  retired C2/C10/C11 stay gated behind `SCAFFOLD_DIFF_GUARD=1` (untouched).
+
+Passes in the current tree, completing quickly with **no** `make dev`/`make eval`
+execution:
+```
+PASS: C6a: make release exits 0 with unit-naming placeholder output
+PASS: C6b: make test/dev/eval are implemented + wired to real behavior (verified via make -n, not executed here)
+```

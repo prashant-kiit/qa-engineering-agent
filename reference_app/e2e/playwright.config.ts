@@ -32,6 +32,11 @@ const backendCommand =
 
 export default defineConfig({
   testDir: './tests',
+  // The unit-6 eval baseline specs live under `tests/eval/` and run via their own
+  // `playwright.eval.config.ts` (which launches the EVAL_BUG bug-catalog backend).
+  // Keep the unit-5 smoke scoped to just `smoke.spec.ts` so its green-on-clean /
+  // red-under-SMOKE_FAULT behavior and scope are unchanged.
+  testIgnore: '**/tests/eval/**',
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
