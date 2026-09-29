@@ -46,13 +46,16 @@ or no tests produced) is **not** an exception: it returns a non-``"ok"``
 
 from __future__ import annotations
 
+import copy
 import fnmatch
+import json
 import os
+import re
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Optional, Protocol
+from typing import Any, Mapping, Optional, Protocol
 
 from runner.authoring import AgentRunOutput, AuthoringInvocation
 
@@ -84,6 +87,23 @@ CAPTURE_GLOBS = ("**/*.spec.ts", "**/*.test.ts", "**/*.api.spec.ts")
 
 #: OpenCode's config-discovery env var (child env points it at the connector config).
 OPENCODE_CONFIG_ENV = "OPENCODE_CONFIG"
+
+#: OpenCode's headless auto-approve-tool-permissions flag (AF1).
+OPENCODE_AUTO_FLAG = "--auto"
+
+#: OpenCode's workspace/root directory flag (AF1) -- must equal the call's ``cwd``.
+OPENCODE_DIR_FLAG = "--dir"
+
+#: OpenCode's continue-session flag (AF2) -- carries the Planner's plan/session into
+#: the Generator's invocation. Only ever placed on the second (Generator) call.
+OPENCODE_CONTINUE_FLAG = "--continue"
+
+#: The materialized, workspace-local config's filename (shared by both invocations
+#: of one run; lives at the workspace root, alongside the ``cwd`` OpenCode is given).
+MATERIALIZED_CONFIG_FILENAME = "opencode.json"
+
+#: Matches OpenCode's ``{file:<path>}`` config-value convention.
+_FILE_REF_RE = re.compile(r"\{file:([^}]+)\}")
 
 
 # --------------------------------------------------------------------------- #
@@ -269,29 +289,140 @@ class OpenCodeRunner:
             )
         return message
 
-    # -- env ----------------------------------------------------------------- #
+    # -- credential ------------------------------------------------------------ #
 
-    def _build_env(self, config_path: Path) -> dict[str, str]:
-        """Build the child env: inherit, inject the model key + config discovery.
-
-        The model key is injected here (child env) **only**. It is never placed in
-        argv, the message/prompt, logs, or the returned output.
-        """
+    def _require_credential(self) -> str:
+        """Verify the model credential reference is set BEFORE any spawn (named error)."""
         key = os.environ.get(self.credential_env)
         if not key:
             raise OpenCodeRunnerError(
                 f"model credential reference {self.credential_env!r} is unset; "
                 "refusing to spawn OpenCode"
             )
+        return key
+
+    # -- env ----------------------------------------------------------------- #
+
+    def _build_env(self, materialized_config_path: Path) -> dict[str, str]:
+        """Build the child env: inherit, inject the model key + config discovery.
+
+        The model key is injected here (child env) **only**. It is never placed in
+        argv, the message/prompt, logs, or the returned output. ``OPENCODE_CONFIG``
+        points at the run's **materialized, workspace-local** config (AF3) -- never
+        at the shipped ``connectors/opencode/opencode.json`` path.
+        """
+        key = self._require_credential()
         env = dict(os.environ)
         env[self.credential_env] = key
-        env[OPENCODE_CONFIG_ENV] = str(config_path)
+        env[OPENCODE_CONFIG_ENV] = str(materialized_config_path)
         return env
+
+    # -- config materialization (AF3, AF4) ------------------------------------ #
+
+    def _materialize_ref(self, raw_ref: str, config_dir: Path, workspace: Path) -> None:
+        """Copy the file a config-relative ref points at into the workspace.
+
+        The ref (an ``instructions`` entry or the inner path of a ``{file:...}``
+        value) is resolved -- preferring :data:`REPO_ROOT` (the shipped config's
+        real convention; the shipped config's own directory does not contain
+        these files), falling back to the governing config's own directory -- and
+        copied byte-for-byte to the *same relative path* under the workspace, so
+        that resolving the (unchanged) ref string relative to the materialized
+        config's own parent directory (the workspace root) lands on an
+        byte-identical, in-workspace copy.
+        """
+        rel = raw_ref[2:] if raw_ref.startswith("./") else raw_ref
+        rel_path = Path(rel)
+        if rel_path.is_absolute():
+            return
+        for base in (REPO_ROOT, config_dir):
+            candidate = base / rel_path
+            if candidate.is_file():
+                dest = workspace / rel_path
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(candidate.read_bytes())
+                return
+
+    def _materialize_file_refs(self, obj: Any, config_dir: Path, workspace: Path) -> None:
+        """Recursively copy every ``{file:...}``-referenced file into the workspace.
+
+        These are the agent-role definitions (``agent.*.prompt``, e.g.
+        ``.opencode/agent/qa-planner.md`` / ``qa-generator.md``) -- static
+        instructions that never change at runtime, so a byte-identical copy is
+        correct (AF3a).
+        """
+        if isinstance(obj, dict):
+            for value in obj.values():
+                self._materialize_file_refs(value, config_dir, workspace)
+        elif isinstance(obj, list):
+            for value in obj:
+                self._materialize_file_refs(value, config_dir, workspace)
+        elif isinstance(obj, str):
+            match = _FILE_REF_RE.search(obj)
+            if match:
+                self._materialize_ref(match.group(1), config_dir, workspace)
+
+    @staticmethod
+    def _materialize_instruction(raw_ref: str, workspace: Path, system_prompt: str) -> None:
+        """Write this run's injected system prompt at an ``instructions`` entry's path.
+
+        The shipped ``agent_config/qa_system_prompt.md`` referenced by
+        ``instructions`` is the raw, unresolved **template** (it still carries the
+        literal ``{{BRD}}`` placeholder -- substituted upstream by unit 6's glue).
+        Byte-copying that template into the workspace would reintroduce the
+        unresolved token into agent-visible surfaces. Instead, each
+        ``instructions`` entry resolves (relative to the materialized config's own
+        parent directory) to a workspace-local file containing THIS run's already
+        BRD-injected, token-free ``invocation.system_prompt`` (AF3b).
+        """
+        rel = raw_ref[2:] if raw_ref.startswith("./") else raw_ref
+        rel_path = Path(rel)
+        if rel_path.is_absolute():
+            return
+        dest = workspace / rel_path
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(system_prompt, encoding="utf-8")
+
+    def _materialize_config(
+        self, workspace: Path, config_path: Path, invocation: AuthoringInvocation
+    ) -> Path:
+        """Materialize a workspace-local copy of the governing config (AF3, AF4).
+
+        Reads (never writes) the shipped/custom ``config_path``, preserves its
+        ``model``/``mcp`` content unchanged, forces
+        ``permission.external_directory == "deny"`` (AF4, always -- regardless of
+        what the input config declares), writes each ``instructions`` entry as
+        this run's injected ``invocation.system_prompt`` (AF3b), copies every
+        ``{file:...}``-referenced agent-role file byte-identically into the
+        workspace (AF3a; mirroring its relative path so the unchanged ref string
+        still resolves), and writes the result to a single, workspace-local JSON
+        file shared by every invocation of this run.
+        """
+        shipped = json.loads(config_path.read_text(encoding="utf-8"))
+        materialized = copy.deepcopy(shipped)
+
+        permission = dict(materialized.get("permission") or {})
+        permission["external_directory"] = "deny"
+        materialized["permission"] = permission
+
+        config_dir = config_path.parent
+        for entry in materialized.get("instructions") or []:
+            if isinstance(entry, str):
+                self._materialize_instruction(entry, workspace, invocation.system_prompt)
+        self._materialize_file_refs(materialized, config_dir, workspace)
+
+        materialized_path = workspace / MATERIALIZED_CONFIG_FILENAME
+        materialized_path.write_text(
+            json.dumps(materialized, indent=2), encoding="utf-8"
+        )
+        return materialized_path
 
     # -- argv ---------------------------------------------------------------- #
 
-    def _build_argv(self, message: str, agent: str) -> list[str]:
-        return [
+    def _build_argv(
+        self, message: str, agent: str, workspace: Path, *, continue_session: bool
+    ) -> list[str]:
+        argv = [
             self.opencode_bin,
             "run",
             message,
@@ -299,7 +430,13 @@ class OpenCodeRunner:
             self.model,
             "--agent",
             agent,
+            OPENCODE_AUTO_FLAG,
+            OPENCODE_DIR_FLAG,
+            str(workspace),
         ]
+        if continue_session:
+            argv.append(OPENCODE_CONTINUE_FLAG)
+        return argv
 
     # -- capture ------------------------------------------------------------- #
 
@@ -332,19 +469,30 @@ class OpenCodeRunner:
         config_path = self._resolve_config_path()
 
         # 2. Model credential must be present BEFORE any spawn (named error).
-        env = self._build_env(config_path)
+        self._require_credential()
 
         # 3. Per-run workspace, distinct from output_dir (single-writer rule).
         workspace = self._make_workspace(invocation)
 
-        # 4. Drive Planner -> Generator (two ordered runs), sharing the workspace.
+        # 4. Materialize a workspace-local config (AF3, AF4) -- one per run, shared
+        #    by both invocations -- and the child env pointing at it.
+        materialized_config_path = self._materialize_config(
+            workspace, config_path, invocation
+        )
+        env = self._build_env(materialized_config_path)
+
+        # 5. Drive Planner -> Generator (two ordered runs), sharing the workspace.
+        #    `--auto` + `--dir <workspace>` on every call (AF1); the continue-session
+        #    flag only on the second (Generator) call (AF2).
         runs = (
             (PLANNER_AGENT, invocation.planner_agent or PLANNER_AGENT),
             (GENERATOR_AGENT, invocation.generator_agent or GENERATOR_AGENT),
         )
-        for role_label, agent in runs:
+        for index, (role_label, agent) in enumerate(runs):
             message = self._compose_message(invocation, role_label)
-            argv = self._build_argv(message, agent)
+            argv = self._build_argv(
+                message, agent, workspace, continue_session=(index > 0)
+            )
             result = self._command_runner(
                 argv,
                 cwd=str(workspace),
