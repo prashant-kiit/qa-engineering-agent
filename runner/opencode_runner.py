@@ -241,12 +241,16 @@ class OpenCodeRunner:
         Delivers ``invocation.system_prompt`` (BRD already injected upstream —
         the token is **not** re-injected here), the ``target_url``, and the seven
         ``planner_fields``. Carries only the Basic-Auth **reference name** — never
-        a resolved secret.
+        a resolved secret — UNLESS ``invocation.basic_auth_credential_value`` has
+        been explicitly, opt-in set (a narrow, documented carve-out; see
+        ``runner/README.md``), in which case the resolved value is additionally
+        included so the agent can submit it through a real login form. The default
+        (``None``) path is byte-identical to the pre-carve-out behavior.
         """
         fields = "\n".join(
             f"- {key}: {value}" for key, value in invocation.planner_fields.items()
         )
-        return (
+        message = (
             f"{invocation.system_prompt}\n\n"
             f"## Active role\n{role}\n\n"
             f"## Target application\n{invocation.target_url}\n\n"
@@ -255,6 +259,15 @@ class OpenCodeRunner:
             "Basic-Auth is provided at runtime via the credential reference "
             f"{invocation.basic_auth_credential_ref!r} (reference name only).\n"
         )
+        credential_value = getattr(invocation, "basic_auth_credential_value", None)
+        if credential_value is not None:
+            message += (
+                "The resolved credential value for this run is "
+                f"{credential_value!r} — use it to submit the target app's login "
+                "form (username/password Basic-Auth) so you can explore the "
+                "authenticated parts of the app.\n"
+            )
+        return message
 
     # -- env ----------------------------------------------------------------- #
 

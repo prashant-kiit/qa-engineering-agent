@@ -84,7 +84,11 @@ class AuthoringError(Exception):
 class AuthoringInvocation:
     """The assembled per-run invocation bundle handed to the injected runner.
 
-    Carries only the credential **reference name** (never a resolved secret value).
+    Carries the credential **reference name** (``basic_auth_credential_ref``); the
+    resolved value (``basic_auth_credential_value``) stays ``None`` unless the
+    caller explicitly opts in via ``run_authoring(..., expose_credential_for_exploration=True)``
+    — a narrow, documented carve-out (see ``runner/README.md``). It never flows
+    into the returned :class:`RunResult`.
     """
 
     system_prompt: str
@@ -96,6 +100,7 @@ class AuthoringInvocation:
     generator_agent: str
     basic_auth_credential_ref: str
     output_dir: str
+    basic_auth_credential_value: Optional[str] = None
 
 
 @dataclass
@@ -218,6 +223,7 @@ def run_authoring(
     agent_runner,
     output_dir=None,
     source_type: str = "auto",
+    expose_credential_for_exploration: bool = False,
 ) -> RunResult:
     """Assemble a per-run authoring invocation, drive the injected runner, write outputs.
 
@@ -234,6 +240,18 @@ def run_authoring(
         (consulted at call time).
     source_type:
         Forwarded to unit-2's loader.
+    expose_credential_for_exploration:
+        Keyword-only, default ``False``. When ``True``, resolves the config's
+        Basic-Auth credential (via the existing, unmodified
+        :meth:`~connectors.target_config.TargetConfig.resolve_credential`) and sets
+        the resolved value onto the assembled :class:`AuthoringInvocation`'s
+        ``basic_auth_credential_value`` field, so an injected agent runner can submit
+        it through a real login form. Default ``False`` leaves that field ``None``
+        and changes nothing else. This is a narrow, opt-in, documented carve-out
+        (see ``runner/README.md``) — the resolved value is never threaded into the
+        returned :class:`RunResult`, only into the invocation handed to
+        ``agent_runner``. ``CredentialUnsetError`` propagates unchanged when the
+        flag is ``True`` and the referenced env var is unset.
 
     Returns
     -------
@@ -265,7 +283,14 @@ def run_authoring(
     resolved_output_dir = DEFAULT_OUTPUT_DIR if output_dir is None else output_dir
     resolved_output_dir = str(resolved_output_dir)
 
-    # 5. Assemble the invocation bundle (units 3 + 5, credential REFERENCE only).
+    # 5. Assemble the invocation bundle (units 3 + 5, credential REFERENCE only by
+    #    default). The opt-in below (default False) is a narrow, documented
+    #    carve-out — see runner/README.md — and never affects the returned
+    #    RunResult.
+    credential_value = None
+    if expose_credential_for_exploration:
+        credential_value = config.resolve_credential()
+
     invocation = AuthoringInvocation(
         system_prompt=system_prompt,
         api_surface=api_surface,
@@ -276,6 +301,7 @@ def run_authoring(
         generator_agent=GENERATOR_AGENT,
         basic_auth_credential_ref=config.basic_auth_credential_ref,
         output_dir=resolved_output_dir,
+        basic_auth_credential_value=credential_value,
     )
 
     # 6. Drive the injected runner — a runner failure is surfaced, never swallowed.
