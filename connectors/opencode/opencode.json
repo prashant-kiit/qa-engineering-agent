@@ -1,0 +1,35 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "openai/gpt-4o-mini",
+  "instructions": [
+    "agent_config/qa_system_prompt.md"
+  ],
+  "mcp": {
+    "playwright": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@playwright/mcp@0.0.41",
+        "--headless",
+        "--browser",
+        "chromium"
+      ],
+      "enabled": true
+    }
+  },
+  "agent": {
+    "qa-planner": {
+      "description": "Product QA Planner: explores the running target app over the Playwright MCP and reads the API schema, then produces a prioritized structured test plan. Reliability rules and grounding come from agent_config/qa_system_prompt.md.",
+      "mode": "primary",
+      "model": "openai/gpt-4o-mini",
+      "prompt": "{file:./.opencode/agent/qa-planner.md}"
+    },
+    "qa-generator": {
+      "description": "Product QA Generator: consumes the Planner's plan and authors executable TypeScript Playwright UI + API tests, grounded in observed DOM snapshots and the API schema. Reliability rules and grounding come from agent_config/qa_system_prompt.md.",
+      "mode": "primary",
+      "model": "openai/gpt-4o-mini",
+      "prompt": "{file:./.opencode/agent/qa-generator.md}"
+    }
+  }
+}

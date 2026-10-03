@@ -1,0 +1,15 @@
+{
+  "target_url": "http://127.0.0.1:5173",
+  "api_spec_source": "http://127.0.0.1:8000/openapi.json",
+  "brd_path": "reference_app/BRD.md",
+  "basic_auth_credential_ref": "REF_APP_BASIC_AUTH",
+  "planner_fields": {
+    "target_scope": "Shop storefront: browse catalog, add to cart, and checkout flow",
+    "intent": "Verify a logged-in shopper can find a product and complete a purchase end to end",
+    "expected_behavior": "Cart totals reflect item prices and quantities, and a successful checkout returns an order confirmation with an order id",
+    "priority_risk": "Payment submission, inventory decrement, and cart total arithmetic are the highest-risk areas",
+    "test_data_preconditions": "Seeded product catalog with at least one in-stock item and a registered user resolvable via the Basic-Auth credential reference",
+    "out_of_scope_constraints": "No real payment gateway is exercised; do not mutate other users' data or the seeded admin account",
+    "depth": "regression"
+  }
+}
